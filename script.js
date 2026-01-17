@@ -115,7 +115,7 @@ function finishPlayerAction() {
     selectedForDiscard.clear();
     render();
 
-    // VICTORIA INMEDIATA: Comprueba antes de que juegue la IA
+    // VICTORIA INMEDIATA: Comprueba antes de que juegue JULIO
     if (!checkWin()) {
         setTimeout(aiTurn, 1000);
     }
@@ -249,7 +249,7 @@ function aiTurn() {
     
     if (!played) { 
         discardPile.push(aiHand[0]); aiHand.splice(0, 1); 
-        notify("🤖 IA pasó turno"); 
+        notify("🤖 Julio pasó turno"); 
     }
     
     while(aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
@@ -354,3 +354,4 @@ function checkWin() {
     return false;
 
 }
+
