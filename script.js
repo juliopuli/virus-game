@@ -348,8 +348,9 @@ function checkWin() {
         return true; 
     }
     if (checkWinCondition(aiBody)) { 
-        setTimeout(() => { alert("💀 LA IA GANA"); initGame(); }, 100); 
+        setTimeout(() => { alert("💀 JULIO GANA"); initGame(); }, 100); 
         return true; 
     }
     return false;
+
 }
