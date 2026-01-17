@@ -115,7 +115,7 @@ function finishPlayerAction() {
     selectedForDiscard.clear();
     render();
 
-    // VICTORIA INMEDIATA: Comprueba antes de que juegue JULIO
+    // VICTORIA INMEDIATA
     if (!checkWin()) {
         setTimeout(aiTurn, 1000);
     }
@@ -147,7 +147,6 @@ function playCard(index) {
         } else notify("⚠️ No hay objetivo válido", true);
     } 
     else if (card.type === 'virus') {
-        // Busca órgano no inmune
         let target = aiBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
         if (target) {
             if (target.vaccines > 0) target.vaccines--; 
@@ -165,7 +164,7 @@ function playCard(index) {
         playerHand.splice(index, 1);
         
         render(); 
-        if (checkWin()) return; // Si ganas al poner carta, termina aquí.
+        if (checkWin()) return;
         finishPlayerAction();
     }
 }
@@ -177,13 +176,19 @@ function applyTreatment(name, isPlayer) {
 
     switch(name) {
         case 'Ladrón':
-            let stealable = enemyBody.find(o => o.vaccines < 2 && !myBody.find(m => m.color === o.color));
+            // ARREGLO DUPLICADOS: Roba solo si NO tienes ya ese color (o es multicolor)
+            let stealable = enemyBody.find(o => 
+                o.vaccines < 2 && 
+                !myBody.some(m => m.color === o.color) // .some() comprueba si YA tienes ese color
+            );
+
             if (stealable) {
                 if (isPlayer) { playerBody.push(stealable); aiBody = aiBody.filter(o => o !== stealable); }
                 else { aiBody.push(stealable); playerBody = playerBody.filter(o => o !== stealable); }
                 success = true;
-            } else if (isPlayer) notify("⚠️ No hay órganos para robar", true);
+            } else if (isPlayer) notify("⚠️ No hay órganos robables (sin repetir color)", true);
             break;
+
         case 'Trasplante':
             let myOrg = myBody.find(o => o.vaccines < 2); 
             let enOrg = enemyBody.find(o => o.vaccines < 2);
@@ -217,7 +222,8 @@ function applyTreatment(name, isPlayer) {
             success = true; break;
     }
     
-    if (success) notify((isPlayer ? "👤 " : "🤖 ") + name);
+    // CAMBIO NOMBRE: Usamos "Julio" en vez de IA
+    if (success) notify((isPlayer ? "👤 " : "🤖 Julio usó: ") + name);
     return isPlayer ? success : true; 
 }
 
@@ -249,6 +255,7 @@ function aiTurn() {
     
     if (!played) { 
         discardPile.push(aiHand[0]); aiHand.splice(0, 1); 
+        // CAMBIO NOMBRE
         notify("🤖 Julio pasó turno"); 
     }
     
@@ -348,10 +355,9 @@ function checkWin() {
         return true; 
     }
     if (checkWinCondition(aiBody)) { 
+        // CAMBIO NOMBRE
         setTimeout(() => { alert("💀 JULIO GANA"); initGame(); }, 100); 
         return true; 
     }
     return false;
-
 }
-
