@@ -25,7 +25,7 @@ body {
     justify-content: center;
     align-items: flex-start;
     min-height: 100vh;
-    overflow-x: hidden; /* Evita scroll lateral */
+    overflow-x: hidden; 
 }
 
 #game-container { 
@@ -133,6 +133,7 @@ h3 {
     transition: transform 0.2s, box-shadow 0.2s;
     box-shadow: 0 3px 6px var(--card-shadow);
     user-select: none;
+    padding: 2px; /* Espacio interno para que el texto no toque bordes */
 }
 
 .card:hover { 
@@ -141,7 +142,6 @@ h3 {
     z-index: 10;
 }
 
-/* Evita bloqueos de clic */
 .card * { pointer-events: none; } 
 
 /* Colores */
@@ -154,7 +154,14 @@ h3 {
 
 /* Iconos */
 .card svg { width: 45%; height: 45%; margin-bottom: 5px; color: rgba(0,0,0,0.6); }
-.card b { font-size: 0.7rem; text-transform: uppercase; text-align: center; line-height: 1; }
+.card b { 
+    font-size: 0.7rem; 
+    text-transform: uppercase; 
+    text-align: center; 
+    line-height: 1;
+    max-width: 95%;
+    overflow: hidden;
+}
 
 /* Estados */
 .selected-discard { border: 3px solid #2ecc71 !important; transform: translateY(-5px); box-shadow: 0 0 10px rgba(46, 204, 113, 0.6); }
@@ -194,15 +201,33 @@ h3 {
 
 /* --- RESPONSIVE: TABLETS Y SURFACE --- */
 @media (max-width: 850px) {
-    :root { --card-w: 75px; --card-h: 105px; }
+    :root { --card-w: 75px; --card-h: 110px; } /* Un poco más altas para que quepa texto */
     #game-container { gap: 8px; }
     .board-section { padding: 8px; }
 }
 
-/* --- RESPONSIVE: MÓVILES --- */
+/* --- RESPONSIVE: MÓVILES (CAMBIOS AQUÍ) --- */
 @media (max-width: 500px) {
-    :root { --card-w: 60px; --card-h: 85px; }
-    .card b { display: none; } /* Ocultar texto en cartas muy pequeñas */
-    .status-row { display: none; }
+    :root {
+        --card-w: 70px; /* Cartas más anchas para que quepa el texto */
+        --card-h: 100px;
+    }
+    
+    /* Mostrar texto OBLIGATORIAMENTE pero pequeño */
+    .card b { 
+        display: block !important; 
+        font-size: 0.55rem; /* Letra pequeñita y legible */
+        margin-top: 2px;
+        white-space: nowrap; /* Evita que ocupe dos líneas si es posible */
+    } 
+
+    /* Reducir un poco el icono para dejar sitio al texto */
+    .card svg {
+        width: 40%;
+        height: 40%;
+        margin-bottom: 2px;
+    }
+
+    .status-row { display: none; } /* Ocultar detalles extra para limpiar */
     h3 { font-size: 0.9rem; }
 }
