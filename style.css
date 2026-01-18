@@ -12,7 +12,7 @@
 * { box-sizing: border-box; }
 
 body { 
-    background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%); /* Fondo degradado */
+    background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%); 
     color: var(--text-color); 
     font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
     margin: 0; 
@@ -36,6 +36,7 @@ body {
     flex-direction: column; 
     gap: 15px; 
     margin: auto;
+    padding-bottom: 20px; /* Espacio extra abajo para no tapar la firma */
 }
 
 /* --- BARRA DE NOTIFICACIONES --- */
@@ -72,15 +73,20 @@ h3 {
     font-weight: 600;
 }
 
-/* TU FIRMA */
+/* --- FIRMA FLOTANTE @ALJUPA (Nueva Ubicación) --- */
 .powered-by {
-    font-size: 0.75rem;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 2px;
-    margin-bottom: 8px;
+    position: fixed; /* Se queda fija en la pantalla */
+    bottom: 5px;     /* Pegada abajo */
+    right: 10px;     /* Pegada a la derecha */
+    
+    /* Ajuste para barra iPhone */
+    bottom: calc(5px + env(safe-area-inset-bottom)); 
+    
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.3); /* Gris clarito transparente */
     font-style: italic;
-    width: 100%;
-    text-align: center;
+    z-index: 1000; /* Siempre encima */
+    pointer-events: none; /* Para que no moleste al pulsar */
 }
 
 .body-slots, .hand { 
@@ -138,7 +144,7 @@ h3 {
     display: flex; 
     flex-direction: column; 
     align-items: center; 
-    justify-content: flex-start; /* Texto arriba */
+    justify-content: flex-start; 
     padding-top: 12px;
     cursor: pointer; 
     position: relative; 
@@ -148,7 +154,6 @@ h3 {
     overflow: hidden;
 }
 
-/* Degradado interior sutil */
 .card::after {
     content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
     background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05));
@@ -171,7 +176,6 @@ h3 {
 .multicolor { background: linear-gradient(45deg, #ff6b6b, #54a0ff, #1dd1a1, #feca57); }
 .treatment { background: #a29bfe; border-color: #6c5ce7; }
 
-/* Iconos y Texto */
 .card svg { width: 50%; height: 50%; margin-bottom: 5px; color: rgba(0,0,0,0.7); filter: drop-shadow(0 2px 2px rgba(255,255,255,0.5)); }
 .card b { 
     font-size: 0.75rem; 
@@ -182,17 +186,15 @@ h3 {
     color: rgba(0,0,0,0.75);
 }
 
-/* Estados */
 .selected-discard { border: 3px solid var(--accent-green) !important; transform: translateY(-8px); box-shadow: 0 0 20px rgba(46, 204, 113, 0.6); }
 .virus-effect { border: 3px dashed var(--accent-red) !important; animation: shake 0.5s infinite; }
 .immune { border: 3px solid #f1c40f !important; box-shadow: 0 0 15px #f1c40f; }
 @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } }
 
-/* Iconos de estado (escudos) */
 .status-row { display: flex; gap: 3px; margin-top: auto; margin-bottom: 8px; height: 14px; }
 .status-row svg { width: 14px; height: 14px; margin: 0; color: rgba(0,0,0,0.8); }
 
-/* --- BOTONES ESCRITORIO (Default) --- */
+/* --- BOTONES ESCRITORIO --- */
 .discard-btn {
     background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); border: none;
     padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
@@ -232,7 +234,6 @@ h3 {
     }
     body { padding: 10px; }
 
-    /* Ajuste de Texto en carta */
     .card { padding-top: 8px; }
     .card b { 
         display: block !important; 
@@ -241,11 +242,10 @@ h3 {
         white-space: nowrap; 
         max-width: 95%; 
     }
-    .status-row { display: none; } /* Limpiamos para que se vea limpio */
+    .status-row { display: none; } 
 
-    /* --- BOTONES DE DESCARTAR TRANSFORMADOS --- */
-    /* Ahora son barras anchas pegadas a la carta */
-    .card-container { gap: 0; } /* Pegar botón a carta */
+    /* BOTONES MÓVILES */
+    .card-container { gap: 0; } 
     
     .card {
         border-bottom-left-radius: 0;
@@ -254,11 +254,11 @@ h3 {
     }
 
     .discard-btn {
-        width: var(--card-w); /* Ancho exacto de la carta */
-        border-radius: 0 0 10px 10px; /* Redondear solo abajo */
+        width: var(--card-w); 
+        border-radius: 0 0 10px 10px; 
         margin-top: -1px;
-        padding: 8px 0; /* Zona táctil grande */
-        font-size: 1.1rem; /* Icono grande */
+        padding: 8px 0; 
+        font-size: 1.1rem; 
         background: rgba(0, 0, 0, 0.4); 
         color: rgba(255, 255, 255, 0.9);
         border: 1px solid rgba(255,255,255,0.1);
@@ -266,7 +266,6 @@ h3 {
         display: flex; justify-content: center; align-items: center;
     }
 
-    /* Feedback visual al seleccionar */
     .selected-discard + .discard-btn {
         background: var(--accent-green);
         color: white;
