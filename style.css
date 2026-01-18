@@ -1,26 +1,27 @@
-/* --- CONFIGURACIÓN GENERAL --- */
+/* --- TEMA PREMIUM --- */
 :root {
-    --bg-main: #1a252f;
-    --card-shadow: rgba(0,0,0,0.4);
+    --bg-main: #2c3e50;
     --text-color: #ecf0f1;
+    --accent-blue: #3498db;
+    --accent-red: #e74c3c;
+    --accent-green: #2ecc71;
     --card-w: 90px;
-    --card-h: 130px;
+    --card-h: 135px;
 }
 
 * { box-sizing: border-box; }
 
 body { 
-    background: var(--bg-main); 
+    background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%); /* Fondo degradado */
     color: var(--text-color); 
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
     margin: 0; 
-    /* Ajustes para iPhone (Notch y barra inferior) */
+    /* Áreas seguras iPhone */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    padding: 10px;
-    
+    padding: 15px;
     display: flex; 
     justify-content: center;
     align-items: flex-start;
@@ -33,44 +34,58 @@ body {
     max-width: 900px; 
     display: flex; 
     flex-direction: column; 
-    gap: 10px; 
+    gap: 15px; 
     margin: auto;
 }
 
 /* --- BARRA DE NOTIFICACIONES --- */
 #notification-bar {
-    background: #f1c40f; 
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
     color: #2c3e50; 
-    padding: 10px; 
+    padding: 12px; 
     text-align: center;
-    font-weight: bold; 
-    border-radius: 8px; 
-    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    font-size: 0.9rem;
+    font-weight: 800; 
+    border-radius: 12px; 
+    box-shadow: 0 4px 15px rgba(243, 156, 18, 0.4);
+    font-size: 0.95rem;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.2);
 }
 
-/* --- SECCIONES DEL TABLERO --- */
+/* --- SECCIONES (Tableros) --- */
 .board-section { 
-    background: rgba(255, 255, 255, 0.05); 
-    padding: 10px; 
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(0, 0, 0, 0.25); 
+    padding: 15px; 
+    border-radius: 16px; 
+    border: 1px solid rgba(255,255,255,0.05);
     display: flex;
     flex-direction: column;
     align-items: center;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
 }
 
 h3 {
-    margin: 0 0 5px 0;
-    opacity: 0.8;
-    font-size: 1rem;
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1rem;
+    width: 100%;
+    text-align: center;
+    font-weight: 600;
+}
+
+/* TU FIRMA */
+.powered-by {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 2px;
+    margin-bottom: 8px;
+    font-style: italic;
     width: 100%;
     text-align: center;
 }
 
 .body-slots, .hand { 
     display: flex; 
-    gap: 8px; 
+    gap: 10px; 
     min-height: var(--card-h); 
     justify-content: center; 
     align-items: center;
@@ -85,149 +100,178 @@ h3 {
     flex-direction: row; 
     justify-content: center;
     align-items: center; 
-    gap: 20px; 
+    gap: 15px; 
     margin: 5px 0; 
-    padding: 10px;
-    background: rgba(0,0,0,0.2);
-    border-radius: 10px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
     flex-wrap: wrap;
 }
 
-#dynamic-controls {
-    display: flex;
-    gap: 8px;
-    justify-content: center;
-    align-items: center;
-}
+#dynamic-controls { display: flex; gap: 10px; justify-content: center; align-items: center; }
 
 .deck-visual {
-    background: #2c3e50 !important;
-    border: 3px solid #34495e !important;
+    background: linear-gradient(135deg, #34495e, #2c3e50) !important;
+    border: 2px solid rgba(255,255,255,0.2) !important;
     color: #ecf0f1 !important;
     cursor: default !important;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
 
-#deck-count { font-size: 20px; font-weight: bold; }
+#deck-count { font-size: 22px; font-weight: 800; }
 
-/* --- CARTAS --- */
+/* --- CARTAS ESTILIZADAS --- */
 .card-container { 
     display: flex; 
     flex-direction: column; 
     align-items: center; 
-    gap: 5px; 
+    gap: 6px; 
 }
 
 .card {
     width: var(--card-w); 
     height: var(--card-h); 
-    border-radius: 8px; 
+    border-radius: 10px; 
     border: 3px solid white;
     background: white; 
     color: #2c3e50;
     display: flex; 
     flex-direction: column; 
     align-items: center; 
-    justify-content: center;
+    justify-content: flex-start; /* Texto arriba */
+    padding-top: 12px;
     cursor: pointer; 
     position: relative; 
     transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 3px 6px var(--card-shadow);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     user-select: none;
-    padding: 2px; /* Espacio interno para que el texto no toque bordes */
-}
-
-.card:hover { 
-    transform: translateY(-5px); 
-    box-shadow: 0 8px 15px var(--card-shadow); 
-    z-index: 10;
-}
-
-.card * { pointer-events: none; } 
-
-/* Colores */
-.red { background: #ff7675; }
-.blue { background: #74b9ff; }
-.green { background: #55efc4; }
-.yellow { background: #ffeaa7; }
-.multicolor { background: linear-gradient(45deg, #ff7675, #74b9ff, #55efc4, #ffeaa7); }
-.treatment { background: #a29bfe; border-color: #6c5ce7; }
-
-/* Iconos */
-.card svg { width: 45%; height: 45%; margin-bottom: 5px; color: rgba(0,0,0,0.6); }
-.card b { 
-    font-size: 0.7rem; 
-    text-transform: uppercase; 
-    text-align: center; 
-    line-height: 1;
-    max-width: 95%;
     overflow: hidden;
 }
 
+/* Degradado interior sutil */
+.card::after {
+    content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05));
+    pointer-events: none;
+}
+
+.card:hover { 
+    transform: translateY(-8px) scale(1.02); 
+    box-shadow: 0 12px 25px rgba(0,0,0,0.4); 
+    z-index: 10;
+}
+
+.card * { pointer-events: none; z-index: 2; } 
+
+/* Colores */
+.red { background: #ff6b6b; }
+.blue { background: #54a0ff; }
+.green { background: #1dd1a1; }
+.yellow { background: #feca57; }
+.multicolor { background: linear-gradient(45deg, #ff6b6b, #54a0ff, #1dd1a1, #feca57); }
+.treatment { background: #a29bfe; border-color: #6c5ce7; }
+
+/* Iconos y Texto */
+.card svg { width: 50%; height: 50%; margin-bottom: 5px; color: rgba(0,0,0,0.7); filter: drop-shadow(0 2px 2px rgba(255,255,255,0.5)); }
+.card b { 
+    font-size: 0.75rem; 
+    text-transform: uppercase; 
+    text-align: center; 
+    line-height: 1.1; 
+    font-weight: 800; 
+    color: rgba(0,0,0,0.75);
+}
+
 /* Estados */
-.selected-discard { border: 3px solid #2ecc71 !important; transform: translateY(-5px); box-shadow: 0 0 10px rgba(46, 204, 113, 0.6); }
-.virus-effect { border: 3px dashed #c0392b !important; animation: shake 0.5s infinite; }
-.immune { border: 3px solid #f1c40f !important; box-shadow: 0 0 10px #f1c40f; }
-
+.selected-discard { border: 3px solid var(--accent-green) !important; transform: translateY(-8px); box-shadow: 0 0 20px rgba(46, 204, 113, 0.6); }
+.virus-effect { border: 3px dashed var(--accent-red) !important; animation: shake 0.5s infinite; }
+.immune { border: 3px solid #f1c40f !important; box-shadow: 0 0 15px #f1c40f; }
 @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } }
-.status-row { display: flex; gap: 2px; margin-top: 2px; height: 12px; }
-.status-row svg { width: 12px; height: 12px; margin: 0; }
 
-/* --- BOTONES --- */
+/* Iconos de estado (escudos) */
+.status-row { display: flex; gap: 3px; margin-top: auto; margin-bottom: 8px; height: 14px; }
+.status-row svg { width: 14px; height: 14px; margin: 0; color: rgba(0,0,0,0.8); }
+
+/* --- BOTONES ESCRITORIO (Default) --- */
 .discard-btn {
-    background: rgba(255,255,255,0.2); color: white; border: 1px solid white;
-    padding: 4px 8px; border-radius: 12px; cursor: pointer; font-size: 0.7rem;
+    background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); border: none;
+    padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
     transition: 0.2s; min-width: 60px;
 }
-.discard-btn:hover { background: #e74c3c; border-color: #e74c3c; }
-.discard-btn.active { background: #2ecc71; border-color: #27ae60; }
+.discard-btn:hover { background: var(--accent-red); color: white; }
+.discard-btn.active { background: var(--accent-green); color: white; }
 
-.toggle-mode-btn { background: #34495e; color: #bdc3c7; border: 1px solid #7f8c8d; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 0.8rem; }
-.toggle-mode-btn:hover { background: #2c3e50; color: white; }
+.toggle-mode-btn, #restart-btn {
+    background: rgba(255, 255, 255, 0.1); color: #ecf0f1; border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 8px 16px; border-radius: 12px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
+    transition: 0.2s;
+}
+.toggle-mode-btn:hover, #restart-btn:hover { background: var(--accent-blue); border-color: var(--accent-blue); transform: translateY(-2px); }
 
 .main-action-btn {
-    background: #e74c3c; color: white; border: none; padding: 8px 16px;
-    font-size: 0.9rem; font-weight: bold; border-radius: 50px; cursor: pointer;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none;
+    padding: 10px 24px; font-size: 1rem; font-weight: bold; border-radius: 50px; cursor: pointer;
+    box-shadow: 0 5px 15px rgba(192, 57, 43, 0.4);
 }
-.main-action-btn:hover { transform: scale(1.05); background: #c0392b; }
+.main-action-btn:hover { transform: scale(1.05); }
 
-.cancel-btn { background: transparent; color: #bdc3c7; border: none; cursor: pointer; text-decoration: underline; font-size: 0.8rem; }
+.cancel-btn { background: transparent; color: rgba(255,255,255,0.6); border: none; cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
 
-#restart-btn { 
-    background: transparent; color: #7f8c8d; border: 1px solid #7f8c8d; 
-    padding: 6px 12px; border-radius: 30px; cursor: pointer; font-size: 0.8rem; margin-top: 5px;
-}
-#restart-btn:hover { background: #e74c3c; color: white; border-color: #e74c3c; }
-
-/* --- RESPONSIVE: TABLETS Y SURFACE --- */
+/* --- RESPONSIVE TABLETS --- */
 @media (max-width: 850px) {
-    :root { --card-w: 75px; --card-h: 110px; } /* Un poco más altas para que quepa texto */
-    #game-container { gap: 8px; }
-    .board-section { padding: 8px; }
+    :root { --card-w: 80px; --card-h: 120px; }
+    #game-container { gap: 10px; }
+    .board-section { padding: 10px; }
 }
 
-/* --- RESPONSIVE: MÓVILES (CAMBIOS AQUÍ) --- */
+/* --- RESPONSIVE MÓVILES (IPHONE) --- */
 @media (max-width: 500px) {
     :root {
-        --card-w: 70px; /* Cartas más anchas para que quepa el texto */
-        --card-h: 100px;
+        --card-w: 74px; 
+        --card-h: 105px;
     }
-    
-    /* Mostrar texto OBLIGATORIAMENTE pero pequeño */
+    body { padding: 10px; }
+
+    /* Ajuste de Texto en carta */
+    .card { padding-top: 8px; }
     .card b { 
         display: block !important; 
-        font-size: 0.55rem; /* Letra pequeñita y legible */
-        margin-top: 2px;
-        white-space: nowrap; /* Evita que ocupe dos líneas si es posible */
-    } 
+        font-size: 0.55rem; 
+        margin-top: 4px; 
+        white-space: nowrap; 
+        max-width: 95%; 
+    }
+    .status-row { display: none; } /* Limpiamos para que se vea limpio */
 
-    /* Reducir un poco el icono para dejar sitio al texto */
-    .card svg {
-        width: 40%;
-        height: 40%;
-        margin-bottom: 2px;
+    /* --- BOTONES DE DESCARTAR TRANSFORMADOS --- */
+    /* Ahora son barras anchas pegadas a la carta */
+    .card-container { gap: 0; } /* Pegar botón a carta */
+    
+    .card {
+        border-bottom-left-radius: 0;
+        border-bottom-right-radius: 0;
+        border-bottom: none;
     }
 
-    .status-row { display: none; } /* Ocultar detalles extra para limpiar */
-    h3 { font-size: 0.9rem; }
+    .discard-btn {
+        width: var(--card-w); /* Ancho exacto de la carta */
+        border-radius: 0 0 10px 10px; /* Redondear solo abajo */
+        margin-top: -1px;
+        padding: 8px 0; /* Zona táctil grande */
+        font-size: 1.1rem; /* Icono grande */
+        background: rgba(0, 0, 0, 0.4); 
+        color: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-top: none;
+        display: flex; justify-content: center; align-items: center;
+    }
+
+    /* Feedback visual al seleccionar */
+    .selected-discard + .discard-btn {
+        background: var(--accent-green);
+        color: white;
+    }
+    .selected-discard {
+        border-bottom: 3px solid var(--accent-green) !important;
+    }
 }
