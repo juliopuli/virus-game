@@ -16,9 +16,9 @@ body {
     color: var(--text-color); 
     font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
     margin: 0; 
-    /* Áreas seguras iPhone */
+    /* Áreas seguras iPhone + un poco extra abajo */
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: calc(env(safe-area-inset-bottom) + 20px); /* MÁS ESPACIO ABAJO */
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     padding: 15px;
@@ -36,7 +36,7 @@ body {
     flex-direction: column; 
     gap: 15px; 
     margin: auto;
-    padding-bottom: 20px; /* Espacio extra abajo para no tapar la firma */
+    /* El padding-bottom aquí ya no es tan crítico, lo manejamos en el body */
 }
 
 /* --- BARRA DE NOTIFICACIONES --- */
@@ -62,10 +62,12 @@ body {
     flex-direction: column;
     align-items: center;
     box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+    /* Asegura que el contenido no se salga */
+    overflow: hidden; 
 }
 
 h3 {
-    margin: 0;
+    margin: 0 0 10px 0; /* Un poco de margen debajo del título */
     opacity: 0.9;
     font-size: 1.1rem;
     width: 100%;
@@ -73,20 +75,17 @@ h3 {
     font-weight: 600;
 }
 
-/* --- FIRMA FLOTANTE @ALJUPA (Nueva Ubicación) --- */
+/* FIRMA FLOTANTE (Fija en la esquina) */
 .powered-by {
-    position: fixed; /* Se queda fija en la pantalla */
-    bottom: 5px;     /* Pegada abajo */
-    right: 10px;     /* Pegada a la derecha */
-    
-    /* Ajuste para barra iPhone */
+    position: fixed;
+    bottom: 5px;
+    right: 10px;
     bottom: calc(5px + env(safe-area-inset-bottom)); 
-    
     font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.3); /* Gris clarito transparente */
+    color: rgba(255, 255, 255, 0.3);
     font-style: italic;
-    z-index: 1000; /* Siempre encima */
-    pointer-events: none; /* Para que no moleste al pulsar */
+    z-index: 1000;
+    pointer-events: none;
 }
 
 .body-slots, .hand { 
@@ -98,6 +97,8 @@ h3 {
     flex-wrap: wrap; 
     width: 100%;
     padding: 5px;
+    /* Importante para que las cartas no se corten */
+    padding-bottom: 15px; 
 }
 
 /* --- ZONA CENTRAL --- */
@@ -132,6 +133,8 @@ h3 {
     flex-direction: column; 
     align-items: center; 
     gap: 6px; 
+    /* Asegura que el contenedor tenga la altura completa */
+    flex-shrink: 0; 
 }
 
 .card {
@@ -223,7 +226,7 @@ h3 {
 @media (max-width: 850px) {
     :root { --card-w: 80px; --card-h: 120px; }
     #game-container { gap: 10px; }
-    .board-section { padding: 10px; }
+    .board-section { padding: 15px; }
 }
 
 /* --- RESPONSIVE MÓVILES (IPHONE) --- */
@@ -232,7 +235,23 @@ h3 {
         --card-w: 74px; 
         --card-h: 105px;
     }
-    body { padding: 10px; }
+    
+    /* MÁS ESPACIO EN EL CUERPO PARA QUE TODO SUBA */
+    body { 
+        padding: 10px 10px 40px 10px; /* Mucho más padding abajo */
+        align-items: flex-start;
+    }
+
+    /* MÁS ESPACIO DENTRO DE LAS CAJAS GRISES */
+    .board-section {
+        padding-bottom: 25px; /* Espacio extra al final de la caja */
+    }
+    
+    .hand {
+         padding-bottom: 20px; /* Espacio extra para la mano */
+    }
+
+    h3 { margin-bottom: 15px; } /* Separar más el título de las cartas */
 
     .card { padding-top: 8px; }
     .card b { 
@@ -245,7 +264,7 @@ h3 {
     .status-row { display: none; } 
 
     /* BOTONES MÓVILES */
-    .card-container { gap: 0; } 
+    .card-container { gap: 0; margin-bottom: 5px; } 
     
     .card {
         border-bottom-left-radius: 0;
@@ -257,7 +276,7 @@ h3 {
         width: var(--card-w); 
         border-radius: 0 0 10px 10px; 
         margin-top: -1px;
-        padding: 8px 0; 
+        padding: 10px 0; /* Botones más altos y fáciles de pulsar */
         font-size: 1.1rem; 
         background: rgba(0, 0, 0, 0.4); 
         color: rgba(255, 255, 255, 0.9);
