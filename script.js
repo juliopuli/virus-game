@@ -40,7 +40,7 @@ function initGame() {
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    notify("¡Partida lista! Juega o descarta.");
+    notify("¡A jugar! Derrota a Julio.");
     render();
 }
 
@@ -176,33 +176,51 @@ function applyTreatment(name, isPlayer) {
 
     switch(name) {
         case 'Ladrón':
-            // ARREGLO DUPLICADOS: Roba solo si NO tienes ya ese color (o es multicolor)
+            // Roba solo si NO tienes ya ese color
             let stealable = enemyBody.find(o => 
                 o.vaccines < 2 && 
-                !myBody.some(m => m.color === o.color) // .some() comprueba si YA tienes ese color
+                !myBody.some(m => m.color === o.color)
             );
-
             if (stealable) {
                 if (isPlayer) { playerBody.push(stealable); aiBody = aiBody.filter(o => o !== stealable); }
                 else { aiBody.push(stealable); playerBody = playerBody.filter(o => o !== stealable); }
                 success = true;
-            } else if (isPlayer) notify("⚠️ No hay órganos robables (sin repetir color)", true);
+            } else if (isPlayer) notify("⚠️ No hay órganos robables", true);
             break;
 
         case 'Trasplante':
-            let myOrg = myBody.find(o => o.vaccines < 2); 
-            let enOrg = enemyBody.find(o => o.vaccines < 2);
-            if (myOrg && enOrg) {
-                if (isPlayer) {
-                    playerBody = playerBody.filter(o => o !== myOrg); aiBody = aiBody.filter(o => o !== enOrg);
-                    playerBody.push(enOrg); aiBody.push(myOrg);
-                } else {
-                    aiBody = aiBody.filter(o => o !== myOrg); playerBody = playerBody.filter(o => o !== enOrg);
-                    aiBody.push(enOrg); playerBody.push(myOrg);
+            // ARREGLO: Buscar una pareja de órganos que se puedan intercambiar SIN REPETIR COLORES
+            let myCandidates = myBody.filter(o => o.vaccines < 2);
+            let enCandidates = enemyBody.filter(o => o.vaccines < 2);
+            let swapFound = false;
+
+            for (let m of myCandidates) {
+                for (let e of enCandidates) {
+                    // ¿Si traigo 'e' a mi cuerpo, repito color? (Ignorando 'm' que se va)
+                    let myDupe = myBody.some(curr => curr !== m && curr.color === e.color);
+                    // ¿Si llevo 'm' al enemigo, repite color? (Ignorando 'e' que se va)
+                    let enDupe = enemyBody.some(curr => curr !== e && curr.color === m.color);
+
+                    if (!myDupe && !enDupe) {
+                        // ¡Intercambio válido!
+                        if (isPlayer) {
+                            playerBody = playerBody.filter(o => o !== m); aiBody = aiBody.filter(o => o !== e);
+                            playerBody.push(e); aiBody.push(m);
+                        } else {
+                            aiBody = aiBody.filter(o => o !== m); playerBody = playerBody.filter(o => o !== e);
+                            aiBody.push(e); playerBody.push(m);
+                        }
+                        swapFound = true;
+                        break; 
+                    }
                 }
-                success = true;
-            } else if (isPlayer) notify("⚠️ No se pueden cambiar órganos inmunizados", true);
+                if (swapFound) break;
+            }
+
+            if (swapFound) success = true;
+            else if (isPlayer) notify("⚠️ No hay cambio válido (colores repetidos)", true);
             break;
+
         case 'Contagio':
              let myViruses = myBody.filter(o => o.infected);
              if(myViruses.length > 0) {
@@ -222,7 +240,6 @@ function applyTreatment(name, isPlayer) {
             success = true; break;
     }
     
-    // CAMBIO NOMBRE: Usamos "Julio" en vez de IA
     if (success) notify((isPlayer ? "👤 " : "🤖 Julio usó: ") + name);
     return isPlayer ? success : true; 
 }
@@ -255,7 +272,6 @@ function aiTurn() {
     
     if (!played) { 
         discardPile.push(aiHand[0]); aiHand.splice(0, 1); 
-        // CAMBIO NOMBRE
         notify("🤖 Julio pasó turno"); 
     }
     
@@ -355,7 +371,6 @@ function checkWin() {
         return true; 
     }
     if (checkWinCondition(aiBody)) { 
-        // CAMBIO NOMBRE
         setTimeout(() => { alert("💀 JULIO GANA"); initGame(); }, 100); 
         return true; 
     }
