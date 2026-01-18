@@ -18,7 +18,7 @@ body {
     margin: 0; 
     /* Áreas seguras iPhone + un poco extra abajo */
     padding-top: env(safe-area-inset-top);
-    padding-bottom: calc(env(safe-area-inset-bottom) + 20px); /* MÁS ESPACIO ABAJO */
+    padding-bottom: calc(env(safe-area-inset-bottom) + 20px); 
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     padding: 15px;
@@ -36,7 +36,6 @@ body {
     flex-direction: column; 
     gap: 15px; 
     margin: auto;
-    /* El padding-bottom aquí ya no es tan crítico, lo manejamos en el body */
 }
 
 /* --- BARRA DE NOTIFICACIONES --- */
@@ -62,12 +61,11 @@ body {
     flex-direction: column;
     align-items: center;
     box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
-    /* Asegura que el contenido no se salga */
     overflow: hidden; 
 }
 
 h3 {
-    margin: 0 0 10px 0; /* Un poco de margen debajo del título */
+    margin: 0 0 10px 0;
     opacity: 0.9;
     font-size: 1.1rem;
     width: 100%;
@@ -75,7 +73,7 @@ h3 {
     font-weight: 600;
 }
 
-/* FIRMA FLOTANTE (Fija en la esquina) */
+/* FIRMA FLOTANTE */
 .powered-by {
     position: fixed;
     bottom: 5px;
@@ -97,7 +95,6 @@ h3 {
     flex-wrap: wrap; 
     width: 100%;
     padding: 5px;
-    /* Importante para que las cartas no se corten */
     padding-bottom: 15px; 
 }
 
@@ -108,14 +105,15 @@ h3 {
     justify-content: center;
     align-items: center; 
     gap: 15px; 
-    margin: 5px 0; 
+    margin: 5px auto; /* Centrado automático */
     padding: 15px;
     background: rgba(255, 255, 255, 0.05);
     border-radius: 16px;
-    flex-wrap: wrap;
+    flex-wrap: wrap; /* Permitir que bajen si no caben */
+    max-width: 95%; /* Evita que toque los bordes en iPad */
 }
 
-#dynamic-controls { display: flex; gap: 10px; justify-content: center; align-items: center; }
+#dynamic-controls { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
 
 .deck-visual {
     background: linear-gradient(135deg, #34495e, #2c3e50) !important;
@@ -133,7 +131,6 @@ h3 {
     flex-direction: column; 
     align-items: center; 
     gap: 6px; 
-    /* Asegura que el contenedor tenga la altura completa */
     flex-shrink: 0; 
 }
 
@@ -222,11 +219,24 @@ h3 {
 
 .cancel-btn { background: transparent; color: rgba(255,255,255,0.6); border: none; cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
 
-/* --- RESPONSIVE TABLETS --- */
+/* --- RESPONSIVE TABLETS (IPAD) --- */
 @media (max-width: 850px) {
     :root { --card-w: 80px; --card-h: 120px; }
     #game-container { gap: 10px; }
     .board-section { padding: 15px; }
+
+    /* Ajuste específico para que no se corten los botones centrales */
+    #deck-area {
+        padding: 10px;
+        gap: 10px;
+        justify-content: center; /* Asegura centrado */
+    }
+    
+    /* Botones un poco más compactos en tablet */
+    .toggle-mode-btn, #restart-btn {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
 }
 
 /* --- RESPONSIVE MÓVILES (IPHONE) --- */
@@ -236,22 +246,17 @@ h3 {
         --card-h: 105px;
     }
     
-    /* MÁS ESPACIO EN EL CUERPO PARA QUE TODO SUBA */
     body { 
-        padding: 10px 10px 40px 10px; /* Mucho más padding abajo */
+        padding: 10px 10px 40px 10px; 
         align-items: flex-start;
     }
 
-    /* MÁS ESPACIO DENTRO DE LAS CAJAS GRISES */
     .board-section {
-        padding-bottom: 25px; /* Espacio extra al final de la caja */
+        padding-bottom: 25px; 
     }
     
-    .hand {
-         padding-bottom: 20px; /* Espacio extra para la mano */
-    }
-
-    h3 { margin-bottom: 15px; } /* Separar más el título de las cartas */
+    .hand { padding-bottom: 20px; }
+    h3 { margin-bottom: 15px; } 
 
     .card { padding-top: 8px; }
     .card b { 
@@ -276,7 +281,7 @@ h3 {
         width: var(--card-w); 
         border-radius: 0 0 10px 10px; 
         margin-top: -1px;
-        padding: 10px 0; /* Botones más altos y fáciles de pulsar */
+        padding: 10px 0; 
         font-size: 1.1rem; 
         background: rgba(0, 0, 0, 0.4); 
         color: rgba(255, 255, 255, 0.9);
