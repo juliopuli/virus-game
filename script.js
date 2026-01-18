@@ -4,7 +4,7 @@ let playerHand = [], aiHand = [], playerBody = [], aiBody = [];
 let selectedForDiscard = new Set(); 
 let multiDiscardMode = false; 
 
-// --- RECURSOS ---
+// Diccionarios
 const translations = { 'organ': 'ÓRGANO', 'virus': 'VIRUS', 'medicine': 'MEDICINA', 'treatment': 'TRATAMIENTO', 'multicolor': 'MULTICOLOR' };
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -14,16 +14,14 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- ARRANQUE SEGURO ---
-window.onload = function() {
-    initGame();
-};
+// Arranque
+window.onload = function() { initGame(); };
 
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
     
-    // Generar cartas
+    // Crear Mazo
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
         for(let i=0; i<4; i++) deck.push({color: c, type: 'virus'});
@@ -34,7 +32,6 @@ function initGame() {
 
     deck = deck.sort(() => Math.random() - 0.5);
     
-    // Repartir
     for(let i=0; i<3; i++) { 
         if(deck.length) playerHand.push(deck.pop()); 
         if(deck.length) aiHand.push(deck.pop()); 
@@ -44,20 +41,15 @@ function initGame() {
     render();
 }
 
-// --- REINICIO SEGURO ---
 function confirmRestart() {
-    setTimeout(() => {
-        if (confirm("¿Reiniciar partida? Se perderá el progreso.")) {
-            initGame();
-        }
-    }, 50);
+    setTimeout(() => { if(confirm("¿Reiniciar partida?")) initGame(); }, 50);
 }
 
 function notify(msg, isError = false) {
     const bar = document.getElementById('notification-bar');
     if(bar) {
         bar.innerText = msg;
-        bar.style.background = isError ? '#e74c3c' : '#f1c40f';
+        bar.style.background = isError ? 'linear-gradient(135deg, #e74c3c, #c0392b)' : 'linear-gradient(135deg, #f1c40f, #f39c12)';
         bar.style.color = isError ? 'white' : '#2c3e50';
     }
 }
@@ -73,7 +65,7 @@ function drawCard() {
     return deck.pop();
 }
 
-// --- CONTROLES MODO MULTIDESCARTE ---
+// --- LOGICA JUEGO ---
 function toggleMultiDiscardMode() {
     multiDiscardMode = !multiDiscardMode;
     selectedForDiscard.clear(); 
@@ -88,13 +80,8 @@ function toggleSelection(index) {
 
 function confirmMultiDiscard() {
     if (selectedForDiscard.size === 0) { toggleMultiDiscardMode(); return; }
-    
     let indices = Array.from(selectedForDiscard).sort((a, b) => b - a);
-    indices.forEach(i => {
-        discardPile.push(playerHand[i]);
-        playerHand.splice(i, 1);
-    });
-    
+    indices.forEach(i => { discardPile.push(playerHand[i]); playerHand.splice(i, 1); });
     finishPlayerAction();
 }
 
@@ -104,24 +91,17 @@ function quickDiscard(index) {
     finishPlayerAction();
 }
 
-// --- FINALIZAR TURNO ---
 function finishPlayerAction() {
     while (playerHand.length < 3) {
         let c = drawCard();
         if(c) playerHand.push(c); else break;
     }
-    
     multiDiscardMode = false;
     selectedForDiscard.clear();
     render();
-
-    // VICTORIA INMEDIATA
-    if (!checkWin()) {
-        setTimeout(aiTurn, 1000);
-    }
+    if (!checkWin()) setTimeout(aiTurn, 1000);
 }
 
-// --- JUGAR CARTA ---
 function playCard(index) {
     if (multiDiscardMode) { toggleSelection(index); return; }
 
@@ -141,8 +121,7 @@ function playCard(index) {
     else if (card.type === 'medicine') {
         let target = playerBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
         if (target) {
-            if (target.infected) target.infected = false; 
-            else target.vaccines++;
+            if (target.infected) target.infected = false; else target.vaccines++;
             actionSuccess = true;
         } else notify("⚠️ No hay objetivo válido", true);
     } 
@@ -151,10 +130,7 @@ function playCard(index) {
         if (target) {
             if (target.vaccines > 0) target.vaccines--; 
             else if (!target.infected) target.infected = true; 
-            else {
-                aiBody = aiBody.filter(o => o !== target); 
-                discardPile.push({color: target.color, type: 'organ'}); 
-            }
+            else { aiBody = aiBody.filter(o => o !== target); discardPile.push({color: target.color, type: 'organ'}); }
             actionSuccess = true;
         } else notify("⚠️ No puedes infectar nada", true);
     }
@@ -162,7 +138,6 @@ function playCard(index) {
     if (actionSuccess) {
         if (!keepCard) discardPile.push(card);
         playerHand.splice(index, 1);
-        
         render(); 
         if (checkWin()) return;
         finishPlayerAction();
@@ -176,33 +151,22 @@ function applyTreatment(name, isPlayer) {
 
     switch(name) {
         case 'Ladrón':
-            // Roba solo si NO tienes ya ese color
-            let stealable = enemyBody.find(o => 
-                o.vaccines < 2 && 
-                !myBody.some(m => m.color === o.color)
-            );
+            let stealable = enemyBody.find(o => o.vaccines < 2 && !myBody.some(m => m.color === o.color));
             if (stealable) {
                 if (isPlayer) { playerBody.push(stealable); aiBody = aiBody.filter(o => o !== stealable); }
                 else { aiBody.push(stealable); playerBody = playerBody.filter(o => o !== stealable); }
                 success = true;
-            } else if (isPlayer) notify("⚠️ No hay órganos robables", true);
+            } else if (isPlayer) notify("⚠️ No puedes robar (repetirías color)", true);
             break;
-
         case 'Trasplante':
-            // ARREGLO: Buscar una pareja de órganos que se puedan intercambiar SIN REPETIR COLORES
-            let myCandidates = myBody.filter(o => o.vaccines < 2);
-            let enCandidates = enemyBody.filter(o => o.vaccines < 2);
+            let myC = myBody.filter(o => o.vaccines < 2);
+            let enC = enemyBody.filter(o => o.vaccines < 2);
             let swapFound = false;
-
-            for (let m of myCandidates) {
-                for (let e of enCandidates) {
-                    // ¿Si traigo 'e' a mi cuerpo, repito color? (Ignorando 'm' que se va)
-                    let myDupe = myBody.some(curr => curr !== m && curr.color === e.color);
-                    // ¿Si llevo 'm' al enemigo, repite color? (Ignorando 'e' que se va)
-                    let enDupe = enemyBody.some(curr => curr !== e && curr.color === m.color);
-
-                    if (!myDupe && !enDupe) {
-                        // ¡Intercambio válido!
+            for (let m of myC) {
+                for (let e of enC) {
+                    let myD = myBody.some(c => c !== m && c.color === e.color);
+                    let enD = enemyBody.some(c => c !== e && c.color === m.color);
+                    if (!myD && !enD) {
                         if (isPlayer) {
                             playerBody = playerBody.filter(o => o !== m); aiBody = aiBody.filter(o => o !== e);
                             playerBody.push(e); aiBody.push(m);
@@ -210,21 +174,17 @@ function applyTreatment(name, isPlayer) {
                             aiBody = aiBody.filter(o => o !== m); playerBody = playerBody.filter(o => o !== e);
                             aiBody.push(e); playerBody.push(m);
                         }
-                        swapFound = true;
-                        break; 
+                        swapFound = true; break; 
                     }
                 }
                 if (swapFound) break;
             }
-
-            if (swapFound) success = true;
-            else if (isPlayer) notify("⚠️ No hay cambio válido (colores repetidos)", true);
+            if (swapFound) success = true; else if (isPlayer) notify("⚠️ No hay cambio válido", true);
             break;
-
         case 'Contagio':
-             let myViruses = myBody.filter(o => o.infected);
-             if(myViruses.length > 0) {
-                 myViruses.forEach(o => {
+             let myV = myBody.filter(o => o.infected);
+             if(myV.length > 0) {
+                 myV.forEach(o => {
                     let t = enemyBody.find(e => !e.infected && e.vaccines === 0 && e.color === o.color);
                     if (t) { o.infected = false; t.infected = true; }
                 });
@@ -239,14 +199,12 @@ function applyTreatment(name, isPlayer) {
             else [aiBody, playerBody] = [playerBody, aiBody];
             success = true; break;
     }
-    
     if (success) notify((isPlayer ? "👤 " : "🤖 Julio usó: ") + name);
     return isPlayer ? success : true; 
 }
 
 function aiTurn() {
     if (checkWinCondition(playerBody) || checkWinCondition(aiBody)) return;
-
     let played = false;
     for (let i = 0; i < aiHand.length; i++) {
         let card = aiHand[i];
@@ -262,39 +220,27 @@ function aiTurn() {
             }
         } else if (card.type === 'medicine') {
             let t = aiBody.find(o => (o.color === card.color || card.color === 'multicolor') && (o.infected || o.vaccines < 2));
-            if(t) { 
-                if(t.infected) t.infected = false; else t.vaccines++; 
-                played = true; discardPile.push(card);
-            }
+            if(t) { if(t.infected) t.infected = false; else t.vaccines++; played = true; discardPile.push(card); }
         }
         if (played) { aiHand.splice(i, 1); break; }
     }
-    
-    if (!played) { 
-        discardPile.push(aiHand[0]); aiHand.splice(0, 1); 
-        notify("🤖 Julio pasó turno"); 
-    }
-    
+    if (!played) { discardPile.push(aiHand[0]); aiHand.splice(0, 1); notify("🤖 Julio pasó turno"); }
     while(aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
-    render();
-    checkWin();
+    render(); checkWin();
 }
 
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
-    
     const pHandDiv = document.getElementById('player-hand');
     if(pHandDiv) {
         pHandDiv.innerHTML = ''; 
         playerHand.forEach((c, i) => {
             const container = document.createElement('div');
             container.className = 'card-container';
-            
             const cardDiv = document.createElement('div');
             let isSelected = selectedForDiscard.has(i);
             cardDiv.className = `card ${c.color || 'treatment'} ${isSelected ? 'selected-discard' : ''}`;
             cardDiv.onclick = function() { playCard(i); }; 
-
             let icon = icons[c.type] || icons.treatment;
             let label = c.name || translations[c.type];
             cardDiv.innerHTML = `${icon}<b>${label}</b>`;
@@ -306,12 +252,10 @@ function render() {
                 actionBtn.onclick = function(e) { e.stopPropagation(); toggleSelection(i); };
             } else {
                 actionBtn.className = 'discard-btn';
-                actionBtn.innerText = '🗑️';
+                actionBtn.innerText = '🗑️'; // Icono papelera
                 actionBtn.onclick = function(e) { e.stopPropagation(); quickDiscard(i); };
             }
-            container.appendChild(cardDiv);
-            container.appendChild(actionBtn);
-            pHandDiv.appendChild(container);
+            container.appendChild(cardDiv); container.appendChild(actionBtn); pHandDiv.appendChild(container);
         });
     }
 
@@ -320,23 +264,20 @@ function render() {
         controlsArea.innerHTML = ''; 
         if (!multiDiscardMode) {
             const toggleBtn = document.createElement('button');
-            toggleBtn.innerText = '⚙️ Selección';
+            toggleBtn.innerHTML = '⚙️ Selección';
             toggleBtn.className = 'toggle-mode-btn';
             toggleBtn.onclick = toggleMultiDiscardMode;
             controlsArea.appendChild(toggleBtn);
         } else {
             const confirmBtn = document.createElement('button');
-            confirmBtn.innerText = `🗑️ Borrar (${selectedForDiscard.size})`;
+            confirmBtn.innerHTML = `🗑️ Borrar (${selectedForDiscard.size})`;
             confirmBtn.className = 'main-action-btn';
             confirmBtn.onclick = confirmMultiDiscard;
-            
             const cancelBtn = document.createElement('button');
             cancelBtn.innerText = 'Cancelar';
             cancelBtn.className = 'cancel-btn';
             cancelBtn.onclick = toggleMultiDiscardMode;
-
-            controlsArea.appendChild(confirmBtn);
-            controlsArea.appendChild(cancelBtn);
+            controlsArea.appendChild(confirmBtn); controlsArea.appendChild(cancelBtn);
         }
     }
 
@@ -357,22 +298,13 @@ function render() {
             });
         }
     };
-    drawBody(playerBody, 'player-body');
-    drawBody(aiBody, 'ai-body');
+    drawBody(playerBody, 'player-body'); drawBody(aiBody, 'ai-body');
 }
 
-function checkWinCondition(body) {
-    return body.filter(o => !o.infected).length >= 4;
-}
+function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
 
 function checkWin() {
-    if (checkWinCondition(playerBody)) { 
-        setTimeout(() => { alert("🎉 ¡VICTORIA!"); initGame(); }, 100); 
-        return true; 
-    }
-    if (checkWinCondition(aiBody)) { 
-        setTimeout(() => { alert("💀 JULIO GANA"); initGame(); }, 100); 
-        return true; 
-    }
+    if (checkWinCondition(playerBody)) { setTimeout(() => { alert("🎉 ¡GANASTE!"); initGame(); }, 100); return true; }
+    if (checkWinCondition(aiBody)) { setTimeout(() => { alert("💀 JULIO GANA"); initGame(); }, 100); return true; }
     return false;
 }
