@@ -25,12 +25,11 @@ body {
     padding: 10px;
     
     display: flex; 
-    justify-content: flex-start; /* Cambio a flex-start para evitar cortes arriba */
+    justify-content: flex-start; 
     align-items: center;
     flex-direction: column;
     min-height: 100vh;
     
-    /* PERMITIR SCROLL VERTICAL SI NO CABE */
     overflow-y: auto; 
     overflow-x: hidden;
 }
@@ -185,6 +184,8 @@ h3 {
 .virus-effect { border: 3px dashed var(--accent-red) !important; animation: shake 0.5s infinite; }
 .immune { border: 3px solid #f1c40f !important; box-shadow: 0 0 15px #f1c40f; }
 @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } }
+
+/* Fila de estado (Vacunas y Virus) */
 .status-row { display: flex; gap: 3px; margin-top: auto; margin-bottom: 8px; height: 14px; }
 .status-row svg { width: 14px; height: 14px; margin: 0; color: rgba(0,0,0,0.8); }
 
@@ -215,7 +216,7 @@ h3 {
 /* --- RESPONSIVE MÓVILES (IPHONE) --- */
 @media (max-width: 500px) {
     :root { --card-w: 72px; --card-h: 105px; }
-    body { padding: 5px 5px 60px 5px; } /* Menos padding lateral, más abajo */
+    body { padding: 5px 5px 60px 5px; } 
     
     .board-section { padding: 10px 5px 20px 5px; width: 100%; }
     
@@ -225,7 +226,15 @@ h3 {
 
     .card { padding-top: 8px; }
     .card b { display: block !important; font-size: 0.55rem; margin-top: 4px; white-space: nowrap; max-width: 95%; }
-    .status-row { display: none; } 
+    
+    /* CAMBIO CLAVE AQUÍ: VOLVEMOS A MOSTRAR LA FILA DE ESTADO */
+    .status-row { 
+        display: flex; 
+        height: 12px; /* Un poco más pequeña que en PC */
+        margin-bottom: 2px; /* Pegadita abajo para no molestar */
+    }
+    .status-row svg { width: 12px; height: 12px; }
+
     .card-container { gap: 0; margin-bottom: 5px; } 
     .card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
     .discard-btn {
