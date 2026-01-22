@@ -155,44 +155,48 @@ h3 {
 }
 #dynamic-controls { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
 
-/* --- EL NUEVO MAZO REALISTA 3D --- */
 .deck-visual {
-    /* Fondo oscuro estilo reverso de carta */
     background: linear-gradient(135deg, #2c3e50, #1a252f) !important;
-    /* Borde blanco más grueso */
     border: 3px solid rgba(255,255,255,0.8) !important;
     color: #ecf0f1 !important;
     cursor: default !important;
     padding: 5px;
-    
-    /* TRUCO DE SOMBRAS APILADAS PARA EFECTO 3D */
-    box-shadow: 
-        0 1px 0 #ccc,
-        0 2px 0 #fff, 
-        0 3px 0 #ccc,
-        0 4px 0 #fff,
-        0 5px 0 #ccc,
-        0 6px 0 #fff,
-        0 8px 15px rgba(0,0,0,0.5) !important;
-        
-    /* Ligera rotación para realismo */
+    box-shadow: 0 1px 0 #ccc, 0 2px 0 #fff, 0 3px 0 #ccc, 0 4px 0 #fff, 0 5px 0 #ccc, 0 6px 0 #fff, 0 8px 15px rgba(0,0,0,0.5) !important;
     transform: rotate(-2deg);
-    
-    /* Sombra en el texto para que se lea bien */
     text-shadow: 1px 1px 2px black;
-    z-index: 5; /* Asegurar que queda por encima */
+    z-index: 5;
 }
-
 #deck-count { font-size: 20px; font-weight: 800; }
 
-/* --- CARTAS --- */
+/* --- CARTAS (Con nueva textura) --- */
 .card-container { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
+
 .card {
-    width: var(--card-w); height: var(--card-h); border-radius: 10px; border: 3px solid white;
-    background: white; color: #2c3e50; display: flex; flex-direction: column; align-items: center; 
-    justify-content: flex-start; padding-top: 12px; cursor: pointer; position: relative; 
-    transition: transform 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.3); user-select: none; overflow: hidden;
+    width: var(--card-w); 
+    height: var(--card-h); 
+    border-radius: 10px; 
+    border: 3px solid white;
+    
+    /* NUEVO FONDO CON CUADRÍCULA SUTIL */
+    background-color: white;
+    background-image: 
+        repeating-linear-gradient(0deg, transparent, transparent 9px, rgba(0,0,0,0.04) 10px),
+        repeating-linear-gradient(90deg, transparent, transparent 9px, rgba(0,0,0,0.04) 10px);
+    
+    color: #2c3e50; 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    justify-content: flex-start; 
+    padding-top: 12px; 
+    cursor: pointer; 
+    position: relative; 
+    transition: transform 0.2s; 
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3); 
+    user-select: none; 
+    overflow: hidden;
 }
+
 .card::after {
     content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
     background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05)); pointer-events: none;
