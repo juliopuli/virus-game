@@ -16,20 +16,16 @@ body {
     color: var(--text-color); 
     font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
     margin: 0; 
-    
-    /* Áreas seguras iPhone + Espacio extra para scroll */
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 40px); 
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
     padding: 10px;
-    
     display: flex; 
     justify-content: flex-start; 
     align-items: center;
     flex-direction: column;
     min-height: 100vh;
-    
     overflow-y: auto; 
     overflow-x: hidden;
 }
@@ -121,7 +117,7 @@ h3 {
     font-weight: 600;
 }
 
-/* FIRMA */
+/* FIRMAS Y VERSIÓN */
 .powered-by {
     font-size: 0.7rem; color: rgba(255, 255, 255, 0.4);
     margin-top: 5px; margin-bottom: 5px; font-style: italic;
@@ -134,6 +130,14 @@ h3 {
     bottom: calc(5px + env(safe-area-inset-bottom)); 
     font-size: 0.65rem; color: rgba(255, 255, 255, 0.3);
     font-style: italic; z-index: 1000; pointer-events: none;
+}
+
+.version-display {
+    position: fixed;
+    bottom: 5px; left: 10px;
+    bottom: calc(5px + env(safe-area-inset-bottom)); 
+    font-size: 0.65rem; color: rgba(255, 255, 255, 0.3);
+    font-family: monospace; z-index: 1000; pointer-events: none;
 }
 
 .body-slots, .hand { 
@@ -227,12 +231,8 @@ h3 {
     .card { padding-top: 8px; }
     .card b { display: block !important; font-size: 0.55rem; margin-top: 4px; white-space: nowrap; max-width: 95%; }
     
-    /* CAMBIO CLAVE AQUÍ: VOLVEMOS A MOSTRAR LA FILA DE ESTADO */
-    .status-row { 
-        display: flex; 
-        height: 12px; /* Un poco más pequeña que en PC */
-        margin-bottom: 2px; /* Pegadita abajo para no molestar */
-    }
+    /* ICONOS VISIBLES EN MÓVIL */
+    .status-row { display: flex; height: 12px; margin-bottom: 2px; }
     .status-row svg { width: 12px; height: 12px; }
 
     .card-container { gap: 0; margin-bottom: 5px; } 
