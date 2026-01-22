@@ -16,7 +16,6 @@ body {
     color: var(--text-color); 
     font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
     margin: 0; 
-    /* Áreas seguras iPhone + un poco extra abajo */
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 20px); 
     padding-left: env(safe-area-inset-left);
@@ -38,6 +37,49 @@ body {
     margin: auto;
 }
 
+/* --- NUEVO: MARCADOR --- */
+#scoreboard-area {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0,0,0,0.3);
+    padding: 10px 15px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.score-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+#target-wins {
+    background: #34495e;
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.scores-display {
+    display: flex;
+    gap: 15px;
+}
+
+.score-box {
+    font-weight: 800;
+    font-size: 1rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.score-box.player span { color: var(--accent-green); font-size: 1.2rem; }
+.score-box.ai span { color: var(--accent-red); font-size: 1.2rem; }
+
 /* --- BARRA DE NOTIFICACIONES --- */
 #notification-bar {
     background: linear-gradient(135deg, #f1c40f, #f39c12);
@@ -51,7 +93,7 @@ body {
     text-shadow: 0 1px 0 rgba(255,255,255,0.2);
 }
 
-/* --- SECCIONES (Tableros) --- */
+/* --- SECCIONES --- */
 .board-section { 
     background: rgba(0, 0, 0, 0.25); 
     padding: 15px; 
@@ -73,48 +115,36 @@ h3 {
     font-weight: 600;
 }
 
-/* FIRMA FLOTANTE */
+/* FIRMA DENTRO DEL BODY (Oculta en móvil si quieres, o visible) */
 .powered-by {
+    font-size: 0.75rem; color: rgba(255, 255, 255, 0.4);
+    margin-top: 2px; margin-bottom: 8px; font-style: italic;
+    width: 100%; text-align: center;
+}
+
+/* FIRMA FLOTANTE FIJA */
+.powered-by-fixed {
     position: fixed;
-    bottom: 5px;
-    right: 10px;
+    bottom: 5px; right: 10px;
     bottom: calc(5px + env(safe-area-inset-bottom)); 
-    font-size: 0.65rem;
-    color: rgba(255, 255, 255, 0.3);
-    font-style: italic;
-    z-index: 1000;
-    pointer-events: none;
+    font-size: 0.65rem; color: rgba(255, 255, 255, 0.3);
+    font-style: italic; z-index: 1000; pointer-events: none;
 }
 
 .body-slots, .hand { 
-    display: flex; 
-    gap: 10px; 
-    min-height: var(--card-h); 
-    justify-content: center; 
-    align-items: center;
-    flex-wrap: wrap; 
-    width: 100%;
-    padding: 5px;
-    padding-bottom: 15px; 
+    display: flex; gap: 10px; min-height: var(--card-h); 
+    justify-content: center; align-items: center; flex-wrap: wrap; 
+    width: 100%; padding: 5px; padding-bottom: 15px; 
 }
 
 /* --- ZONA CENTRAL --- */
 #deck-area { 
-    display: flex; 
-    flex-direction: row; 
-    justify-content: center;
-    align-items: center; 
-    gap: 15px; 
-    margin: 5px auto; /* Centrado automático */
-    padding: 15px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 16px;
-    flex-wrap: wrap; /* Permitir que bajen si no caben */
-    max-width: 95%; /* Evita que toque los bordes en iPad */
+    display: flex; flex-direction: row; justify-content: center; 
+    align-items: center; gap: 15px; margin: 5px auto; padding: 15px;
+    background: rgba(255, 255, 255, 0.05); border-radius: 16px;
+    flex-wrap: wrap; max-width: 95%;
 }
-
 #dynamic-controls { display: flex; gap: 10px; justify-content: center; align-items: center; flex-wrap: wrap; }
-
 .deck-visual {
     background: linear-gradient(135deg, #34495e, #2c3e50) !important;
     border: 2px solid rgba(255,255,255,0.2) !important;
@@ -122,79 +152,36 @@ h3 {
     cursor: default !important;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
 }
-
 #deck-count { font-size: 22px; font-weight: 800; }
 
-/* --- CARTAS ESTILIZADAS --- */
-.card-container { 
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    gap: 6px; 
-    flex-shrink: 0; 
-}
-
+/* --- CARTAS --- */
+.card-container { display: flex; flex-direction: column; align-items: center; gap: 6px; flex-shrink: 0; }
 .card {
-    width: var(--card-w); 
-    height: var(--card-h); 
-    border-radius: 10px; 
-    border: 3px solid white;
-    background: white; 
-    color: #2c3e50;
-    display: flex; 
-    flex-direction: column; 
-    align-items: center; 
-    justify-content: flex-start; 
-    padding-top: 12px;
-    cursor: pointer; 
-    position: relative; 
-    transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    user-select: none;
-    overflow: hidden;
+    width: var(--card-w); height: var(--card-h); border-radius: 10px; border: 3px solid white;
+    background: white; color: #2c3e50; display: flex; flex-direction: column; align-items: center; 
+    justify-content: flex-start; padding-top: 12px; cursor: pointer; position: relative; 
+    transition: transform 0.2s, box-shadow 0.2s; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    user-select: none; overflow: hidden;
 }
-
 .card::after {
     content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
-    background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05));
-    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05)); pointer-events: none;
 }
-
-.card:hover { 
-    transform: translateY(-8px) scale(1.02); 
-    box-shadow: 0 12px 25px rgba(0,0,0,0.4); 
-    z-index: 10;
-}
-
+.card:hover { transform: translateY(-8px) scale(1.02); box-shadow: 0 12px 25px rgba(0,0,0,0.4); z-index: 10; }
 .card * { pointer-events: none; z-index: 2; } 
-
-/* Colores */
-.red { background: #ff6b6b; }
-.blue { background: #54a0ff; }
-.green { background: #1dd1a1; }
-.yellow { background: #feca57; }
+.red { background: #ff6b6b; } .blue { background: #54a0ff; } .green { background: #1dd1a1; } .yellow { background: #feca57; }
 .multicolor { background: linear-gradient(45deg, #ff6b6b, #54a0ff, #1dd1a1, #feca57); }
 .treatment { background: #a29bfe; border-color: #6c5ce7; }
-
 .card svg { width: 50%; height: 50%; margin-bottom: 5px; color: rgba(0,0,0,0.7); filter: drop-shadow(0 2px 2px rgba(255,255,255,0.5)); }
-.card b { 
-    font-size: 0.75rem; 
-    text-transform: uppercase; 
-    text-align: center; 
-    line-height: 1.1; 
-    font-weight: 800; 
-    color: rgba(0,0,0,0.75);
-}
-
+.card b { font-size: 0.75rem; text-transform: uppercase; text-align: center; line-height: 1.1; font-weight: 800; color: rgba(0,0,0,0.75); }
 .selected-discard { border: 3px solid var(--accent-green) !important; transform: translateY(-8px); box-shadow: 0 0 20px rgba(46, 204, 113, 0.6); }
 .virus-effect { border: 3px dashed var(--accent-red) !important; animation: shake 0.5s infinite; }
 .immune { border: 3px solid #f1c40f !important; box-shadow: 0 0 15px #f1c40f; }
 @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(2deg); } 75% { transform: rotate(-2deg); } }
-
 .status-row { display: flex; gap: 3px; margin-top: auto; margin-bottom: 8px; height: 14px; }
 .status-row svg { width: 14px; height: 14px; margin: 0; color: rgba(0,0,0,0.8); }
 
-/* --- BOTONES ESCRITORIO --- */
+/* --- BOTONES --- */
 .discard-btn {
     background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8); border: none;
     padding: 6px 12px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; font-weight: 600;
@@ -202,99 +189,47 @@ h3 {
 }
 .discard-btn:hover { background: var(--accent-red); color: white; }
 .discard-btn.active { background: var(--accent-green); color: white; }
-
 .toggle-mode-btn, #restart-btn {
     background: rgba(255, 255, 255, 0.1); color: #ecf0f1; border: 1px solid rgba(255, 255, 255, 0.2);
     padding: 8px 16px; border-radius: 12px; cursor: pointer; font-size: 0.9rem; font-weight: 600;
     transition: 0.2s;
 }
 .toggle-mode-btn:hover, #restart-btn:hover { background: var(--accent-blue); border-color: var(--accent-blue); transform: translateY(-2px); }
-
 .main-action-btn {
     background: linear-gradient(135deg, #e74c3c, #c0392b); color: white; border: none;
     padding: 10px 24px; font-size: 1rem; font-weight: bold; border-radius: 50px; cursor: pointer;
     box-shadow: 0 5px 15px rgba(192, 57, 43, 0.4);
 }
 .main-action-btn:hover { transform: scale(1.05); }
-
 .cancel-btn { background: transparent; color: rgba(255,255,255,0.6); border: none; cursor: pointer; font-size: 0.85rem; text-decoration: underline; }
 
-/* --- RESPONSIVE TABLETS (IPAD) --- */
+/* --- RESPONSIVE TABLETS --- */
 @media (max-width: 850px) {
     :root { --card-w: 80px; --card-h: 120px; }
     #game-container { gap: 10px; }
     .board-section { padding: 15px; }
-
-    /* Ajuste específico para que no se corten los botones centrales */
-    #deck-area {
-        padding: 10px;
-        gap: 10px;
-        justify-content: center; /* Asegura centrado */
-    }
-    
-    /* Botones un poco más compactos en tablet */
-    .toggle-mode-btn, #restart-btn {
-        padding: 8px 12px;
-        font-size: 0.85rem;
-    }
+    #deck-area { padding: 10px; gap: 10px; justify-content: center; }
+    .toggle-mode-btn, #restart-btn { padding: 8px 12px; font-size: 0.85rem; }
 }
 
 /* --- RESPONSIVE MÓVILES (IPHONE) --- */
 @media (max-width: 500px) {
-    :root {
-        --card-w: 74px; 
-        --card-h: 105px;
-    }
-    
-    body { 
-        padding: 10px 10px 40px 10px; 
-        align-items: flex-start;
-    }
-
-    .board-section {
-        padding-bottom: 25px; 
-    }
-    
+    :root { --card-w: 74px; --card-h: 105px; }
+    body { padding: 10px 10px 40px 10px; align-items: flex-start; }
+    .board-section { padding-bottom: 25px; }
     .hand { padding-bottom: 20px; }
     h3 { margin-bottom: 15px; } 
-
     .card { padding-top: 8px; }
-    .card b { 
-        display: block !important; 
-        font-size: 0.55rem; 
-        margin-top: 4px; 
-        white-space: nowrap; 
-        max-width: 95%; 
-    }
+    .card b { display: block !important; font-size: 0.55rem; margin-top: 4px; white-space: nowrap; max-width: 95%; }
     .status-row { display: none; } 
-
-    /* BOTONES MÓVILES */
     .card-container { gap: 0; margin-bottom: 5px; } 
-    
-    .card {
-        border-bottom-left-radius: 0;
-        border-bottom-right-radius: 0;
-        border-bottom: none;
-    }
-
+    .card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: none; }
     .discard-btn {
-        width: var(--card-w); 
-        border-radius: 0 0 10px 10px; 
-        margin-top: -1px;
-        padding: 10px 0; 
-        font-size: 1.1rem; 
-        background: rgba(0, 0, 0, 0.4); 
-        color: rgba(255, 255, 255, 0.9);
-        border: 1px solid rgba(255,255,255,0.1);
-        border-top: none;
+        width: var(--card-w); border-radius: 0 0 10px 10px; margin-top: -1px; padding: 10px 0; 
+        font-size: 1.1rem; background: rgba(0, 0, 0, 0.4); color: rgba(255, 255, 255, 0.9);
+        border: 1px solid rgba(255,255,255,0.1); border-top: none;
         display: flex; justify-content: center; align-items: center;
     }
-
-    .selected-discard + .discard-btn {
-        background: var(--accent-green);
-        color: white;
-    }
-    .selected-discard {
-        border-bottom: 3px solid var(--accent-green) !important;
-    }
+    .selected-discard + .discard-btn { background: var(--accent-green); color: white; }
+    .selected-discard { border-bottom: 3px solid var(--accent-green) !important; }
 }
