@@ -168,7 +168,7 @@ h3 {
 }
 #deck-count { font-size: 20px; font-weight: 800; }
 
-/* --- CARTAS (Con nueva textura) --- */
+/* --- CARTAS (Con cuadrícula visible) --- */
 .card-container { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
 
 .card {
@@ -177,12 +177,14 @@ h3 {
     border-radius: 10px; 
     border: 3px solid white;
     
-    /* NUEVO FONDO CON CUADRÍCULA SUTIL */
+    /* CUADRÍCULA MÁS MARCADA (0.08 de opacidad) */
     background-color: white;
-    background-image: 
-        repeating-linear-gradient(0deg, transparent, transparent 9px, rgba(0,0,0,0.04) 10px),
-        repeating-linear-gradient(90deg, transparent, transparent 9px, rgba(0,0,0,0.04) 10px);
-    
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px);
+    background-size: 10px 10px; /* Tamaño del cuadrado */
+    background-position: center;
+
     color: #2c3e50; 
     display: flex; 
     flex-direction: column; 
@@ -199,7 +201,9 @@ h3 {
 
 .card::after {
     content: ''; position: absolute; top:0; left:0; right:0; bottom:0;
-    background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05)); pointer-events: none;
+    /* Sombra interior suave encima de la cuadrícula */
+    background: linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(0,0,0,0.05)); 
+    pointer-events: none;
 }
 .card:hover { transform: translateY(-8px) scale(1.02); z-index: 10; }
 .card * { pointer-events: none; z-index: 2; } 
