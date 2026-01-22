@@ -155,15 +155,35 @@ h3 {
 }
 #dynamic-controls { display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
 
+/* --- EL NUEVO MAZO REALISTA 3D --- */
 .deck-visual {
-    background: linear-gradient(135deg, #34495e, #2c3e50) !important;
-    border: 2px solid rgba(255,255,255,0.2) !important;
+    /* Fondo oscuro estilo reverso de carta */
+    background: linear-gradient(135deg, #2c3e50, #1a252f) !important;
+    /* Borde blanco más grueso */
+    border: 3px solid rgba(255,255,255,0.8) !important;
     color: #ecf0f1 !important;
     cursor: default !important;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
     padding: 5px;
+    
+    /* TRUCO DE SOMBRAS APILADAS PARA EFECTO 3D */
+    box-shadow: 
+        0 1px 0 #ccc,
+        0 2px 0 #fff, 
+        0 3px 0 #ccc,
+        0 4px 0 #fff,
+        0 5px 0 #ccc,
+        0 6px 0 #fff,
+        0 8px 15px rgba(0,0,0,0.5) !important;
+        
+    /* Ligera rotación para realismo */
+    transform: rotate(-2deg);
+    
+    /* Sombra en el texto para que se lea bien */
+    text-shadow: 1px 1px 2px black;
+    z-index: 5; /* Asegurar que queda por encima */
 }
-#deck-count { font-size: 18px; font-weight: 800; }
+
+#deck-count { font-size: 20px; font-weight: 800; }
 
 /* --- CARTAS --- */
 .card-container { display: flex; flex-direction: column; align-items: center; gap: 4px; flex-shrink: 0; }
