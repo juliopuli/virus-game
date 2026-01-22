@@ -4,7 +4,7 @@ let playerHand = [], aiHand = [], playerBody = [], aiBody = [];
 let selectedForDiscard = new Set(); 
 let multiDiscardMode = false; 
 
-// Puntuación del Torneo (Se carga de memoria)
+// Puntuación del Torneo
 let playerWins = 0;
 let aiWins = 0;
 
@@ -17,8 +17,9 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
+// ARRANQUE: Carga memoria ANTES de iniciar
 window.onload = function() { 
-    loadScores(); // Cargar puntuación guardada
+    loadScores(); 
     initGame(); 
 };
 
@@ -47,28 +48,43 @@ function initGame() {
     render();
 }
 
-// --- GESTIÓN DE PUNTUACIÓN Y MEMORIA ---
+// --- GESTIÓN DE PUNTUACIÓN Y MEMORIA (MEJORADA) ---
 function updateScoreboard() {
     document.getElementById('p-score').innerText = playerWins;
     document.getElementById('a-score').innerText = aiWins;
 }
 
 function saveScores() {
+    // 1. Guardamos victorias
     localStorage.setItem('virus_playerWins', playerWins);
     localStorage.setItem('virus_aiWins', aiWins);
+    
+    // 2. Guardamos la elección del torneo (NUEVO)
+    const target = document.getElementById('target-wins').value;
+    localStorage.setItem('virus_targetWins', target);
 }
 
 function loadScores() {
+    // 1. Recuperamos victorias
     if(localStorage.getItem('virus_playerWins')) {
         playerWins = parseInt(localStorage.getItem('virus_playerWins'));
         aiWins = parseInt(localStorage.getItem('virus_aiWins'));
+    }
+    
+    // 2. Recuperamos la elección del torneo (NUEVO)
+    if(localStorage.getItem('virus_targetWins')) {
+        const savedTarget = localStorage.getItem('virus_targetWins');
+        const selectElement = document.getElementById('target-wins');
+        if(selectElement) {
+            selectElement.value = savedTarget;
+        }
     }
 }
 
 function resetSeries() {
     playerWins = 0;
     aiWins = 0;
-    saveScores(); // Guardar el reseteo
+    saveScores(); // Guarda los ceros y el nuevo objetivo de torneo
     initGame();
 }
 
@@ -76,7 +92,7 @@ function confirmRestartSeries() {
     setTimeout(() => { if(confirm("¿Reiniciar todo el torneo? El marcador volverá a 0.")) resetSeries(); }, 50);
 }
 
-// ... (Resto de funciones: notify, drawCard, etc. SIN CAMBIOS) ...
+// --- FUNCIONES DE JUEGO (Mazo, Descartes, etc.) ---
 function notify(msg, isError = false) {
     const bar = document.getElementById('notification-bar');
     if(bar) {
@@ -171,14 +187,14 @@ function render() {
 
 function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
 
-// --- LÓGICA DE TORNEO CORREGIDA ---
+// --- LÓGICA DE TORNEO CON PERSISTENCIA ---
 function checkWin() {
     const target = parseInt(document.getElementById('target-wins').value);
 
     // GANA JUGADOR
     if (checkWinCondition(playerBody)) {
         playerWins++;
-        saveScores(); // Guardar inmediatamente
+        saveScores(); // Guardamos victoria al momento
         updateScoreboard();
         
         if (playerWins >= target && (playerWins - aiWins) >= 2) {
@@ -192,7 +208,7 @@ function checkWin() {
     // GANA JULIO
     if (checkWinCondition(aiBody)) {
         aiWins++;
-        saveScores(); // Guardar inmediatamente
+        saveScores(); // Guardamos victoria al momento
         updateScoreboard();
         
         if (aiWins >= target && (aiWins - playerWins) >= 2) {
