@@ -17,7 +17,7 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// ARRANQUE: Carga memoria ANTES de iniciar
+// ARRANQUE
 window.onload = function() { 
     loadScores(); 
     initGame(); 
@@ -48,43 +48,35 @@ function initGame() {
     render();
 }
 
-// --- GESTIÓN DE PUNTUACIÓN Y MEMORIA (MEJORADA) ---
+// --- GESTIÓN DE PUNTUACIÓN ---
 function updateScoreboard() {
     document.getElementById('p-score').innerText = playerWins;
     document.getElementById('a-score').innerText = aiWins;
 }
 
 function saveScores() {
-    // 1. Guardamos victorias
     localStorage.setItem('virus_playerWins', playerWins);
     localStorage.setItem('virus_aiWins', aiWins);
-    
-    // 2. Guardamos la elección del torneo (NUEVO)
     const target = document.getElementById('target-wins').value;
     localStorage.setItem('virus_targetWins', target);
 }
 
 function loadScores() {
-    // 1. Recuperamos victorias
     if(localStorage.getItem('virus_playerWins')) {
         playerWins = parseInt(localStorage.getItem('virus_playerWins'));
         aiWins = parseInt(localStorage.getItem('virus_aiWins'));
     }
-    
-    // 2. Recuperamos la elección del torneo (NUEVO)
     if(localStorage.getItem('virus_targetWins')) {
         const savedTarget = localStorage.getItem('virus_targetWins');
         const selectElement = document.getElementById('target-wins');
-        if(selectElement) {
-            selectElement.value = savedTarget;
-        }
+        if(selectElement) { selectElement.value = savedTarget; }
     }
 }
 
 function resetSeries() {
     playerWins = 0;
     aiWins = 0;
-    saveScores(); // Guarda los ceros y el nuevo objetivo de torneo
+    saveScores();
     initGame();
 }
 
@@ -92,7 +84,7 @@ function confirmRestartSeries() {
     setTimeout(() => { if(confirm("¿Reiniciar todo el torneo? El marcador volverá a 0.")) resetSeries(); }, 50);
 }
 
-// --- FUNCIONES DE JUEGO (Mazo, Descartes, etc.) ---
+// --- FUNCIONES BÁSICAS ---
 function notify(msg, isError = false) {
     const bar = document.getElementById('notification-bar');
     if(bar) {
@@ -124,16 +116,79 @@ function finishPlayerAction() {
     if (!checkWin()) setTimeout(aiTurn, 1000);
 }
 
+// --- JUGAR CARTA (CON LÓGICA DE ELECCIÓN MANUAL) ---
 function playCard(index) {
     if (multiDiscardMode) { toggleSelection(index); return; }
-    const card = playerHand[index]; let actionSuccess = false; let keepCard = false; 
+    const card = playerHand[index]; 
+    let actionSuccess = false; 
+    let keepCard = false; 
 
-    if (card.type === 'treatment') actionSuccess = applyTreatment(card.name, true);
-    else if (card.type === 'organ') { if (!playerBody.find(o => o.color === card.color)) { playerBody.push({color: card.color, vaccines: 0, infected: false}); actionSuccess = true; keepCard = true; } else notify("⚠️ Ya tienes ese color", true); } 
-    else if (card.type === 'medicine') { let target = playerBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)); if (target) { if (target.infected) target.infected = false; else target.vaccines++; actionSuccess = true; } else notify("⚠️ No hay objetivo válido", true); } 
-    else if (card.type === 'virus') { let target = aiBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2); if (target) { if (target.vaccines > 0) target.vaccines--; else if (!target.infected) target.infected = true; else { aiBody = aiBody.filter(o => o !== target); discardPile.push({color: target.color, type: 'organ'}); } actionSuccess = true; } else notify("⚠️ No puedes infectar nada", true); }
+    if (card.type === 'treatment') {
+        actionSuccess = applyTreatment(card.name, true);
+    } 
+    else if (card.type === 'organ') {
+        if (!playerBody.find(o => o.color === card.color)) { 
+            playerBody.push({color: card.color, vaccines: 0, infected: false}); 
+            actionSuccess = true; keepCard = true; 
+        } else notify("⚠️ Ya tienes ese color", true);
+    } 
+    else if (card.type === 'medicine') {
+        // Buscar TODOS los objetivos posibles
+        let candidates = playerBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
+        
+        if (candidates.length === 0) {
+            notify("⚠️ No hay objetivo válido", true);
+        } else if (candidates.length === 1) {
+            // Solo uno posible, lo aplicamos directo
+            let target = candidates[0];
+            if (target.infected) target.infected = false; else target.vaccines++;
+            actionSuccess = true;
+        } else {
+            // Múltiples opciones: PREGUNTAR AL USUARIO
+            for (let target of candidates) {
+                // Mensaje tipo: "¿Aplicar a Órgano VERDE?"
+                if (confirm(`¿Aplicar a Órgano ${target.color.toUpperCase()}?`)) {
+                    if (target.infected) target.infected = false; else target.vaccines++;
+                    actionSuccess = true;
+                    break; // Salimos del bucle si elige este
+                }
+            }
+        }
+    } 
+    else if (card.type === 'virus') {
+        // Buscar TODOS los objetivos posibles en el enemigo
+        let candidates = aiBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
+        
+        if (candidates.length === 0) {
+            notify("⚠️ No puedes infectar nada", true);
+        } else if (candidates.length === 1) {
+            // Solo uno posible
+            let target = candidates[0];
+            if (target.vaccines > 0) target.vaccines--; 
+            else if (!target.infected) target.infected = true; 
+            else { aiBody = aiBody.filter(o => o !== target); discardPile.push({color: target.color, type: 'organ'}); }
+            actionSuccess = true;
+        } else {
+            // Múltiples opciones: PREGUNTAR
+            for (let target of candidates) {
+                if (confirm(`¿Infectar Órgano ${target.color.toUpperCase()} de Julio?`)) {
+                    if (target.vaccines > 0) target.vaccines--; 
+                    else if (!target.infected) target.infected = true; 
+                    else { aiBody = aiBody.filter(o => o !== target); discardPile.push({color: target.color, type: 'organ'}); }
+                    actionSuccess = true;
+                    break;
+                }
+            }
+        }
+    }
 
-    if (actionSuccess) { if (!keepCard) discardPile.push(card); playerHand.splice(index, 1); render(); if (checkWin()) return; finishPlayerAction(); }
+    if (actionSuccess) { 
+        if (!keepCard) discardPile.push(card); 
+        playerHand.splice(index, 1); 
+        render(); 
+        if (checkWin()) return; 
+        finishPlayerAction(); 
+    }
 }
 
 function applyTreatment(name, isPlayer) {
@@ -187,20 +242,23 @@ function render() {
 
 function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
 
-// --- LÓGICA DE TORNEO CON PERSISTENCIA ---
+// --- VICTORIA CON MARCADOR FINAL ---
 function checkWin() {
     const target = parseInt(document.getElementById('target-wins').value);
 
     // GANA JUGADOR
     if (checkWinCondition(playerBody)) {
         playerWins++;
-        saveScores(); // Guardamos victoria al momento
+        saveScores(); 
         updateScoreboard();
         
         if (playerWins >= target && (playerWins - aiWins) >= 2) {
-            setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO! \n\nHas derrotado a Julio."); resetSeries(); }, 100);
+            setTimeout(() => { 
+                alert(`🏆 ¡CAMPEÓN DEL TORNEO!\nHas derrotado a Julio.\n\nResultado Final: ${playerWins} - ${aiWins}`); 
+                resetSeries(); 
+            }, 100);
         } else {
-            setTimeout(() => { alert("🎉 ¡Ronda para ti! \n\nMarcador: " + playerWins + " - " + aiWins); initGame(); }, 100);
+            setTimeout(() => { alert(`🎉 ¡Punto para ti!\n\nMarcador: ${playerWins} - ${aiWins}`); initGame(); }, 100);
         }
         return true;
     }
@@ -208,13 +266,16 @@ function checkWin() {
     // GANA JULIO
     if (checkWinCondition(aiBody)) {
         aiWins++;
-        saveScores(); // Guardamos victoria al momento
+        saveScores(); 
         updateScoreboard();
         
         if (aiWins >= target && (aiWins - playerWins) >= 2) {
-            setTimeout(() => { alert("💀 JULIO GANA EL TORNEO \n\nInténtalo de nuevo."); resetSeries(); }, 100);
+            setTimeout(() => { 
+                alert(`💀 JULIO GANA EL TORNEO\nInténtalo de nuevo.\n\nResultado Final: ${playerWins} - ${aiWins}`); 
+                resetSeries(); 
+            }, 100);
         } else {
-            setTimeout(() => { alert("🤖 Ronda para Julio. \n\nMarcador: " + playerWins + " - " + aiWins); initGame(); }, 100);
+            setTimeout(() => { alert(`🤖 Punto para Julio.\n\nMarcador: ${playerWins} - ${aiWins}`); initGame(); }, 100);
         }
         return true;
     }
