@@ -4,7 +4,7 @@ let playerHand = [], aiHand = [], playerBody = [], aiBody = [];
 let selectedForDiscard = new Set(); 
 let multiDiscardMode = false; 
 
-// Puntuación del Torneo
+// Puntuación del Torneo (Se carga de memoria)
 let playerWins = 0;
 let aiWins = 0;
 
@@ -17,7 +17,10 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-window.onload = function() { initGame(); };
+window.onload = function() { 
+    loadScores(); // Cargar puntuación guardada
+    initGame(); 
+};
 
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
@@ -44,14 +47,28 @@ function initGame() {
     render();
 }
 
+// --- GESTIÓN DE PUNTUACIÓN Y MEMORIA ---
 function updateScoreboard() {
     document.getElementById('p-score').innerText = playerWins;
     document.getElementById('a-score').innerText = aiWins;
 }
 
+function saveScores() {
+    localStorage.setItem('virus_playerWins', playerWins);
+    localStorage.setItem('virus_aiWins', aiWins);
+}
+
+function loadScores() {
+    if(localStorage.getItem('virus_playerWins')) {
+        playerWins = parseInt(localStorage.getItem('virus_playerWins'));
+        aiWins = parseInt(localStorage.getItem('virus_aiWins'));
+    }
+}
+
 function resetSeries() {
     playerWins = 0;
     aiWins = 0;
+    saveScores(); // Guardar el reseteo
     initGame();
 }
 
@@ -59,7 +76,7 @@ function confirmRestartSeries() {
     setTimeout(() => { if(confirm("¿Reiniciar todo el torneo? El marcador volverá a 0.")) resetSeries(); }, 50);
 }
 
-// ... (Funciones de UI y Mazo iguales: notify, drawCard, toggleMultiDiscardMode...) 
+// ... (Resto de funciones: notify, drawCard, etc. SIN CAMBIOS) ...
 function notify(msg, isError = false) {
     const bar = document.getElementById('notification-bar');
     if(bar) {
@@ -85,7 +102,6 @@ function toggleSelection(index) { if (selectedForDiscard.has(index)) selectedFor
 function confirmMultiDiscard() { if (selectedForDiscard.size === 0) { toggleMultiDiscardMode(); return; } let indices = Array.from(selectedForDiscard).sort((a, b) => b - a); indices.forEach(i => { discardPile.push(playerHand[i]); playerHand.splice(i, 1); }); finishPlayerAction(); }
 function quickDiscard(index) { discardPile.push(playerHand[index]); playerHand.splice(index, 1); finishPlayerAction(); }
 
-// ... (Finalizar turno y Jugar carta igual) ...
 function finishPlayerAction() {
     while (playerHand.length < 3) { let c = drawCard(); if(c) playerHand.push(c); else break; }
     multiDiscardMode = false; selectedForDiscard.clear(); render();
@@ -155,16 +171,16 @@ function render() {
 
 function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
 
-// --- LÓGICA DE TORNEO CON DIFERENCIA DE 2 ---
+// --- LÓGICA DE TORNEO CORREGIDA ---
 function checkWin() {
     const target = parseInt(document.getElementById('target-wins').value);
 
-    // Si ganas la ronda
+    // GANA JUGADOR
     if (checkWinCondition(playerBody)) {
         playerWins++;
+        saveScores(); // Guardar inmediatamente
         updateScoreboard();
         
-        // Comprobar si ganas el torneo (Llegas a la meta Y tienes ventaja de 2)
         if (playerWins >= target && (playerWins - aiWins) >= 2) {
             setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO! \n\nHas derrotado a Julio."); resetSeries(); }, 100);
         } else {
@@ -173,9 +189,10 @@ function checkWin() {
         return true;
     }
 
-    // Si gana Julio la ronda
+    // GANA JULIO
     if (checkWinCondition(aiBody)) {
         aiWins++;
+        saveScores(); // Guardar inmediatamente
         updateScoreboard();
         
         if (aiWins >= target && (aiWins - playerWins) >= 2) {
