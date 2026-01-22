@@ -8,11 +8,31 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/FortAwesome/Font-Awesome/6.x/svgs/solid/virus.svg">
 
-    <title>Virus! Premium</title>
+    <title>Virus! Tournament</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div id="game-container">
+        
+        <div id="scoreboard-area">
+            <div class="score-controls">
+                <span>Al mejor de:</span>
+                <select id="target-wins" onchange="resetSeries()">
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5" selected>5</option> <option value="6">6</option>
+                    <option value="7">7</option>
+                    <option value="8">8</option>
+                    <option value="9">9</option>
+                    <option value="10">10</option>
+                </select>
+            </div>
+            <div class="scores-display">
+                <div class="score-box player">TÚ: <span id="p-score">0</span></div>
+                <div class="score-box ai">JULIO: <span id="a-score">0</span></div>
+            </div>
+        </div>
+
         <div id="notification-bar">Cargando...</div>
         
         <div class="board-section">
@@ -30,17 +50,18 @@
                 </div>
             </div>
 
-            <button onclick="confirmRestart()" id="restart-btn">🔄 Reiniciar</button>
+            <button onclick="confirmRestartSeries()" id="restart-btn">🔄 Reiniciar Torneo</button>
         </div>
 
         <div class="board-section">
             <div id="player-body" class="body-slots"></div>
             <h3>👤 Tu salud</h3>
+            <div class="powered-by">powered by @aljupa</div>
             <div id="player-hand" class="hand"></div>
         </div>
     </div>
-
-    <div class="powered-by">powered by @aljupa</div>
+    
+    <div class="powered-by-fixed">powered by @aljupa</div>
 
     <script src="script.js"></script>
 </body>
