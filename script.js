@@ -7,10 +7,9 @@ let multiDiscardMode = false;
 // --- VARIABLES DE ESTADO ---
 let isMultiplayer = false;
 let isHost = false;
-// let peer = null; // YA NO USAMOS PEER
-let mqttClient = null; // NUEVO CLIENTE
-let myTopic = null;    // Donde yo escucho
-let rivalTopic = null; // Donde yo envío
+let mqttClient = null;
+let myTopic = null;    // Donde escucho
+let rivalTopic = null; // Donde hablo
 let currentRoomCode = null;
 
 let myTurn = true; 
@@ -36,12 +35,16 @@ const icons = {
 
 // --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
-    isMultiplayer = false; isHost = true;
+    // Apagar cualquier red previa
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
+    isMultiplayer = false; 
+    isHost = true;
     
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
-    
+    lastActionLog = "Partida Local";
+
+    // UI
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
@@ -50,7 +53,9 @@ function startLocalGame() {
     document.getElementById('restart-btn').style.display = 'block';
     
     loadScores();
-    roundStarter = 'p1'; 
+    roundStarter = 'p1';
+    
+    // Iniciar inmediatamente (sin esperas de red)
     initGame(); 
 }
 
@@ -66,11 +71,12 @@ function joinRoomUI() {
     document.getElementById('join-input-area').style.display = 'block';
 }
 
-function generateRoomCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
+function generateRoomCode() { 
+    return Math.floor(100000 + Math.random() * 900000).toString(); // 6 Dígitos numéricos
+}
 
-// --- NUEVA LÓGICA DE RED (MQTT / WEBSOCKETS) ---
-// Usamos un broker público gratuito pero robusto (EMQX)
-const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt'; 
+// --- LÓGICA DE RED ROBUSTA (MQTT) ---
+const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
 
 function createRoom() {
     let btns = document.querySelectorAll('.mp-action-btn');
@@ -82,31 +88,34 @@ function createRoom() {
     document.getElementById('room-code-display').style.display = 'block';
     
     isHost = true;
-    setupMqttConnection();
+    connectMqtt();
 }
 
 function connectToPeer() {
-    const code = document.getElementById('remote-code-input').value.toUpperCase();
-    if (!code) return alert("Introduce un código");
+    const code = document.getElementById('remote-code-input').value;
+    if (!code) return alert("Introduce el código");
     
     isHost = false; 
     currentRoomCode = code;
-    setupMqttConnection();
+    connectMqtt();
 }
 
-function setupMqttConnection() {
+function connectMqtt() {
+    notify("Conectando al servidor...");
+    
     if(mqttClient) mqttClient.end();
     
-    // Conexión al servidor público
-    mqttClient = mqtt.connect(BROKER_URL);
+    // Conexión limpia
+    mqttClient = mqtt.connect(BROKER_URL, {
+        clean: true,
+        connectTimeout: 4000,
+        clientId: 'virus_' + Math.random().toString(16).substr(2, 8)
+    });
 
     mqttClient.on('connect', () => {
-        console.log("Conectado al servidor MQTT");
+        console.log("Conectado a MQTT");
         
-        // Definir buzones (Topics)
-        // Estructura: virusgame/CODIGO/host (Host escucha aquí)
-        // Estructura: virusgame/CODIGO/client (Cliente escucha aquí)
-        
+        // Host escucha en /host, Cliente escucha en /client
         if (isHost) {
             myTopic = `virusgame/${currentRoomCode}/host`;
             rivalTopic = `virusgame/${currentRoomCode}/client`;
@@ -115,13 +124,18 @@ function setupMqttConnection() {
             rivalTopic = `virusgame/${currentRoomCode}/host`;
         }
 
-        // Suscribirse a mi buzón
-        mqttClient.subscribe(myTopic, (err) => {
+        // Suscribirse con QoS 1 (Entrega asegurada)
+        mqttClient.subscribe(myTopic, { qos: 1 }, (err) => {
             if (!err) {
-                if (!isHost) {
-                    // Si soy cliente, al conectar envío saludo
+                if (isHost) {
+                    notify("Sala creada. Esperando rival...");
+                } else {
+                    notify("Conectado. Saludando al Host...");
+                    // Enviar saludo inicial
                     sendData('HANDSHAKE', { name: myPlayerName });
                 }
+            } else {
+                alert("Error al suscribirse al canal.");
             }
         });
     });
@@ -130,78 +144,53 @@ function setupMqttConnection() {
         try {
             const data = JSON.parse(message.toString());
             handleNetworkData(data);
-        } catch (e) { console.error("Error mensaje", e); }
+        } catch (e) { console.error("Error msg:", e); }
     });
     
     mqttClient.on('error', (err) => {
         console.error(err);
-        alert("Error de conexión (MQTT). Revisa internet.");
+        notify("Error de conexión. Reintentando...");
     });
 }
 
 function sendData(type, content) {
     if (mqttClient && mqttClient.connected) {
         const payload = JSON.stringify({ type: type, content: content });
-        mqttClient.publish(rivalTopic, payload);
+        // QoS 1: El servidor confirma que recibió el mensaje
+        mqttClient.publish(rivalTopic, payload, { qos: 1 });
     }
 }
 
-// --- GESTIÓN DE DATOS ---
 function handleNetworkData(data) {
-    if (data.type === 'HANDSHAKE') {
+    // 1. HANDSHAKE (Host recibe nombre del cliente)
+    if (data.type === 'HANDSHAKE' && isHost) {
         opponentName = data.content.name.toUpperCase();
+        setupUiMultiplayer();
         
-        // UI
-        document.getElementById('main-menu').style.display = 'none';
-        document.getElementById('game-container').classList.remove('blurred');
-        document.getElementById('rival-name').innerText = opponentName;
-        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-        document.getElementById('connection-status').innerText = "";
+        // Responder al cliente
+        sendData('HANDSHAKE_REPLY', { name: myPlayerName });
         
-        isMultiplayer = true;
-
-        if (isHost) {
-            sendData('HANDSHAKE_REPLY', { name: myPlayerName });
-            document.getElementById('restart-btn').style.display = 'none';
-            document.getElementById('target-wins').disabled = false; 
-            
-            playerWins = 0; aiWins = 0;
-            updateScoreboard();
-            roundStarter = 'p1';
-            
-            notify("Rival conectado. Iniciando...");
-            setTimeout(() => initGame(), 500); 
-        } 
+        // Iniciar partida
+        notify("Rival encontrado. Repartiendo...");
+        playerWins = 0; aiWins = 0;
+        updateScoreboard();
+        roundStarter = 'p1';
+        setTimeout(() => initGame(), 1000); 
     }
 
-    if (data.type === 'HANDSHAKE_REPLY') {
+    // 2. HANDSHAKE_REPLY (Cliente recibe nombre del host)
+    if (data.type === 'HANDSHAKE_REPLY' && !isHost) {
         opponentName = data.content.name.toUpperCase();
-        document.getElementById('main-menu').style.display = 'none';
-        document.getElementById('game-container').classList.remove('blurred');
-        document.getElementById('rival-name').innerText = opponentName;
-        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-        
-        isMultiplayer = true;
-        document.getElementById('target-wins').disabled = true; 
-        document.getElementById('restart-btn').style.display = 'none';
-        notify("Conectado. Esperando reparto...");
+        setupUiMultiplayer();
+        notify("Esperando cartas del Host...");
     }
 
-    if (data.type === 'STATE_UPDATE') { applyGameState(data.content); }
-    
-    if (data.type === 'ROUND_OVER') {
-        const info = data.content;
-        if (info.winner === 'client') alert("¡GANASTE LA RONDA!");
-        else alert("¡" + opponentName + " GANA LA RONDA!");
-        
-        if (info.tournamentOver) {
-            setTimeout(() => {
-                if (info.winner === 'client') alert("🏆 ¡CAMPEÓN DEL TORNEO!");
-                else alert("💀 " + opponentName + " GANA EL TORNEO");
-            }, 500);
-        }
+    // 3. ESTADO DEL JUEGO
+    if (data.type === 'STATE_UPDATE') {
+        applyGameState(data.content);
     }
     
+    // 4. ACCIONES DE JUEGO (Host ejecuta lo que pide el cliente)
     if (data.type === 'MOVE' && isHost) {
         if (data.content.action === 'multi_discard') {
             let indices = data.content.indices.sort((a,b)=>b-a);
@@ -215,14 +204,50 @@ function handleNetworkData(data) {
             executeRemoteMove(data.content);
         }
     }
+    
+    // 5. FIN DE RONDA
+    if (data.type === 'ROUND_OVER') {
+        const info = data.content;
+        if (info.winner === 'client') alert("¡GANASTE LA RONDA!");
+        else alert("¡" + opponentName + " GANA LA RONDA!");
+        
+        if (info.tournamentOver) {
+            setTimeout(() => {
+                if (info.winner === 'client') alert("🏆 ¡CAMPEÓN DEL TORNEO!");
+                else alert("💀 " + opponentName + " GANA EL TORNEO");
+            }, 500);
+        }
+    }
+}
+
+function setupUiMultiplayer() {
+    isMultiplayer = true;
+    document.getElementById('main-menu').style.display = 'none';
+    document.getElementById('game-container').classList.remove('blurred');
+    document.getElementById('rival-name').innerText = opponentName;
+    document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+    document.getElementById('connection-status').innerText = "";
+    
+    if(!isHost) {
+        document.getElementById('target-wins').disabled = true;
+        document.getElementById('restart-btn').style.display = 'none';
+    } else {
+        document.getElementById('target-wins').disabled = false;
+        document.getElementById('restart-btn').style.display = 'none';
+    }
 }
 
 function applyGameState(state) {
-    playerHand = state.p2Hand || []; aiHand = state.p1Hand || [];     
-    playerBody = state.p2Body || []; aiBody = state.p1Body || [];
-    deck = state.deck || []; discardPile = state.discard || [];
+    playerHand = state.p2Hand || []; 
+    aiHand = state.p1Hand || [];     
+    playerBody = state.p2Body || []; 
+    aiBody = state.p1Body || [];
+    deck = state.deck || []; 
+    discardPile = state.discard || [];
+    
     myTurn = (state.turn === 'p2'); 
-    playerWins = state.wins.p2; aiWins = state.wins.p1;
+    playerWins = state.wins.p2;
+    aiWins = state.wins.p1;
     lastActionLog = state.lastLog || "";
     
     updateScoreboard();
@@ -233,7 +258,7 @@ function applyGameState(state) {
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
-    lastActionLog = "Nueva Ronda";
+    lastActionLog = "Partida comenzada";
     
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -250,13 +275,14 @@ function initGame() {
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
+    // En local o Host, el turno lo decide la variable roundStarter
     myTurn = (roundStarter === 'p1');
 
     updateScoreboard();
-    render(); 
+    render(); // Importante: Dibuja inmediatamente
     
     if (isMultiplayer && isHost) {
-        setTimeout(broadcastState, 300); 
+        setTimeout(broadcastState, 500); 
     } 
     else if (!isMultiplayer) { 
         if(myTurn) notify("¡A jugar! Tu turno.");
@@ -294,6 +320,7 @@ function loadScores() {
     }
 }
 
+// --- VICTORIA Y RONDAS ---
 function checkWin() {
     if (isMultiplayer && !isHost) return; 
     let roundWinner = null;
@@ -703,5 +730,6 @@ function confirmMultiDiscard() {
             setTimeout(aiTurn, 1000); 
         }
     }
+    
     multiDiscardMode = false; selectedForDiscard.clear(); render();
 }
