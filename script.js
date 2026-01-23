@@ -35,7 +35,6 @@ function startLocalGame() {
     isHost = true;
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
-    
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
@@ -60,133 +59,81 @@ function generateRoomCode() {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-// --- LÓGICA RED ---
+// --- RED ---
 function createRoom() {
+    document.querySelector('.mp-action-btn.host').style.display = 'none';
+    document.querySelector('.mp-action-btn.join').style.display = 'none';
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
-    
-    // Ocultar botones para limpiar
-    document.querySelector('.mp-action-btn.host').style.display = 'none';
-    document.querySelector('.mp-action-btn.join').style.display = 'none';
-    
     peer = new Peer('virus_game_' + code);
-    
-    peer.on('open', (id) => {
-        isHost = true;
-    });
-
-    peer.on('connection', (connection) => {
-        conn = connection;
-        setupConnection();
-    });
+    peer.on('open', (id) => { isHost = true; });
+    peer.on('connection', (connection) => { conn = connection; setupConnection(); });
 }
 
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value.toUpperCase();
     if (!code) return alert("Introduce un código");
-    
-    isHost = false; // Importante
+    isHost = false; 
     peer = new Peer();
-    peer.on('open', () => {
-        conn = peer.connect('virus_game_' + code);
-        setupConnection();
-    });
+    peer.on('open', () => { conn = peer.connect('virus_game_' + code); setupConnection(); });
 }
 
 function setupConnection() {
-    conn.on('open', () => {
-        // Enviar mi nombre al conectar
-        sendData('HANDSHAKE', { name: myPlayerName });
-    });
-
-    conn.on('data', (data) => {
-        handleNetworkData(data);
-    });
+    conn.on('open', () => { sendData('HANDSHAKE', { name: myPlayerName }); });
+    conn.on('data', (data) => { handleNetworkData(data); });
 }
 
 function sendData(type, content) {
-    if (conn && conn.open) {
-        conn.send({ type: type, content: content });
-    }
+    if (conn && conn.open) { conn.send({ type: type, content: content }); }
 }
 
 function handleNetworkData(data) {
     if (data.type === 'HANDSHAKE') {
-        // Recibimos nombre del rival
         opponentName = data.content.name.toUpperCase();
-        
-        // Configurar UI común
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
         document.getElementById('connection-status').innerText = "";
-        
         isMultiplayer = true;
-
         if (isHost) {
-            // EL HOST INICIA LA PARTIDA Y ENVÍA CARTAS
             document.getElementById('restart-btn').style.display = 'none';
-            document.getElementById('target-wins').disabled = false; // Host controla
-            
-            // Reiniciamos puntuación y barajamos
+            document.getElementById('target-wins').disabled = false; 
             playerWins = 0; aiWins = 0;
             updateScoreboard();
-            
-            // Esperamos 500ms para asegurar conexión estable y lanzamos
-            setTimeout(() => {
-                initGame(); 
-            }, 500);
+            setTimeout(() => { initGame(); }, 500);
         } else {
-            // EL CLIENTE SE BLOQUEA Y ESPERA DATOS
-            document.getElementById('target-wins').disabled = true; // Cliente no toca esto
+            document.getElementById('target-wins').disabled = true; 
             document.getElementById('restart-btn').style.display = 'none';
             notify("Conectado. Esperando al Host...");
         }
     }
 
     if (data.type === 'STATE_UPDATE') {
-        // EL CLIENTE RECIBE EL ESTADO DEL JUEGO
         const state = data.content;
+        playerHand = state.p2Hand; aiHand = state.p1Hand;     
+        playerBody = state.p2Body; aiBody = state.p1Body;
+        deck = state.deck; discardPile = state.discard;
+        myTurn = state.turn === 'p2'; 
+        playerWins = state.wins.p2; aiWins = state.wins.p1;
         
-        // Mapeo inverso: lo que para el host es p2, para mi es MI mano
-        playerHand = state.p2Hand; 
-        aiHand = state.p1Hand;     
-        playerBody = state.p2Body;
-        aiBody = state.p1Body;
-        deck = state.deck; // Visual
-        discardPile = state.discard;
-        
-        // Calcular turno
-        if (state.turn === 'p2') myTurn = true;
-        else myTurn = false;
-
-        // Sincronizar victorias
-        playerWins = state.wins.p2;
-        aiWins = state.wins.p1;
-        
-        // Actualizar UI
         updateScoreboard();
-        render(); // ESTO DIBUJA LAS CARTAS
+        render(); // Al renderizar se actualizan los fondos
         
-        // Mensajes
         if (myTurn) notify("¡Tu turno, " + myPlayerName + "!");
         else notify("Turno de " + opponentName + "...");
-
-        // Verificar victorias remotas
+        
         if (checkWinCondition(playerBody)) alert("¡GANASTE LA RONDA!");
         if (checkWinCondition(aiBody)) alert(opponentName + " GANA LA RONDA");
     }
     
     if (data.type === 'MOVE' && isHost) {
-        // El Host recibe orden de jugada del cliente
         executeRemoteMove(data.content);
     }
 }
 
 // --- JUEGO CORE ---
-
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
@@ -206,35 +153,22 @@ function initGame() {
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    // Si es multijugador y soy host, el turno empieza en P1 (Host)
     if (isMultiplayer && isHost) myTurn = true;
-
     updateScoreboard();
     
     if (isMultiplayer) {
-        if(isHost) {
-            notify("Tu turno, " + myPlayerName);
-            broadcastState(); // IMPORTANTE: ENVIAR CARTAS AL CLIENTE
-        } else {
-            notify("Esperando al Host...");
-        }
-    } else {
-        notify("¡A jugar! Derrota a " + opponentName);
-    }
-    
+        if(isHost) { notify("Tu turno, " + myPlayerName); broadcastState(); } 
+        else { notify("Esperando al Host..."); }
+    } else { notify("¡A jugar! Derrota a " + opponentName); }
     render();
 }
 
 function broadcastState() {
     if (!isMultiplayer || !isHost) return;
-    
     const gameState = {
-        p1Hand: playerHand, // Host
-        p2Hand: aiHand,     // Cliente (se guarda en aiHand localmente)
-        p1Body: playerBody,
-        p2Body: aiBody,
-        deck: deck, 
-        discard: discardPile,
+        p1Hand: playerHand, p2Hand: aiHand, 
+        p1Body: playerBody, p2Body: aiBody,
+        deck: deck, discard: discardPile,
         turn: myTurn ? 'p1' : 'p2',
         wins: { p1: playerWins, p2: aiWins }
     };
@@ -254,14 +188,9 @@ function loadScores() {
 }
 
 function resetSeries() {
-    // Si soy cliente en MP, no puedo resetear
     if (isMultiplayer && !isHost) return;
-
     playerWins = 0; aiWins = 0;
-    if (!isMultiplayer) {
-        localStorage.setItem('virus_playerWins', 0);
-        localStorage.setItem('virus_aiWins', 0);
-    }
+    if (!isMultiplayer) { localStorage.setItem('virus_playerWins', 0); localStorage.setItem('virus_aiWins', 0); }
     initGame();
 }
 
@@ -270,58 +199,74 @@ function confirmRestartSeries() {
     setTimeout(() => { if(confirm("¿Reiniciar partida?")) resetSeries(); }, 50);
 }
 
-function notify(msg) {
-    document.getElementById('notification-bar').innerText = msg;
-}
-
+function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function drawCard() {
     if (deck.length === 0) {
-        if (discardPile.length > 0) {
-            deck = discardPile.sort(() => Math.random() - 0.5);
-            discardPile = [];
-        } else return null;
-    }
-    return deck.pop();
+        if (discardPile.length > 0) { deck = discardPile.sort(() => Math.random() - 0.5); discardPile = []; } else return null;
+    } return deck.pop();
 }
 
-// --- ACCIONES DE JUEGO ---
-
+// --- LOGICA JUEGO MEJORADA (CON SELECCIÓN MANUAL) ---
 function playCard(index) {
-    // Verificación estricta de turno en MP
-    if (isMultiplayer && !myTurn) {
-        notify("⛔ Es el turno de " + opponentName);
-        return;
-    }
-
+    if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
 
-    // Si soy cliente, le digo al Host qué carta quiero jugar
+    const card = playerHand[index];
+    let selectedColor = null;
+
+    // --- AQUÍ RECUPERAMOS LA LÓGICA DE PREGUNTAR ANTES DE ENVIAR ---
+    
+    // Si es medicina y hay duda
+    if (card.type === 'medicine') {
+        let candidates = playerBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
+        if (candidates.length > 1) {
+            for (let target of candidates) {
+                if (confirm(`¿Aplicar a Órgano ${target.color.toUpperCase()}?`)) {
+                    selectedColor = target.color;
+                    break;
+                }
+            }
+            if (!selectedColor) return; // Si cancela todo, no juega
+        }
+    }
+    
+    // Si es virus y hay duda
+    if (card.type === 'virus') {
+        let candidates = aiBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
+        if (candidates.length > 1) {
+            for (let target of candidates) {
+                if (confirm(`¿Infectar Órgano ${target.color.toUpperCase()}?`)) {
+                    selectedColor = target.color;
+                    break;
+                }
+            }
+            if (!selectedColor) return;
+        }
+    }
+    // -------------------------------------------------------------
+
+    // Si soy cliente, envío la jugada (con el color elegido si hace falta)
     if (isMultiplayer && !isHost) {
-        sendData('MOVE', { action: 'play', index: index });
-        notify("Enviando jugada...");
+        sendData('MOVE', { action: 'play', index: index, targetColor: selectedColor });
         return; 
     }
 
-    // Si soy Host o Single Player, ejecuto la jugada
-    executeMove(index, true);
+    // Si soy Host o Local, ejecuto
+    executeMove(index, true, selectedColor);
 }
 
-function executeMove(index, isPlayerMove) {
-    // En el Host: 
-    // isPlayerMove = true -> Juega el Host (usa playerHand)
-    // isPlayerMove = false -> Juega el Cliente (usa aiHand)
-    
+// Función maestra que ejecuta movimientos (Locales o Remotos)
+function executeMove(index, isPlayerMove, forcedTargetColor = null) {
     let currentHand = isPlayerMove ? playerHand : aiHand;
     let currentBody = isPlayerMove ? playerBody : aiBody;
     let rivalBody = isPlayerMove ? aiBody : playerBody;
     
     const card = currentHand[index];
-    if(!card) return; // Protección
+    if(!card) return;
 
     let actionSuccess = false;
     let keepCard = false;
 
-    // LÓGICA DE CARTAS
     if (card.type === 'treatment') {
         actionSuccess = applyTreatment(card.name, isPlayerMove);
     } 
@@ -332,20 +277,37 @@ function executeMove(index, isPlayerMove) {
         } else if(isPlayerMove && !isMultiplayer) notify("⚠️ Ya tienes ese color");
     } 
     else if (card.type === 'medicine') {
-        // En MP simplificamos confirmaciones para no bloquear red
-        let target = currentBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
+        // Filtrar candidatos
+        let candidates = currentBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
+        let target = null;
+        
+        // Si viene un color forzado (elección manual), buscamos ese
+        if (forcedTargetColor) {
+            target = candidates.find(o => o.color === forcedTargetColor);
+        } else if (candidates.length > 0) {
+            // Si no hay elección (ej: solo 1 opción o IA), cogemos el primero
+            target = candidates[0];
+        }
+
         if (target) {
              if (target.infected) target.infected = false; else target.vaccines++; 
              actionSuccess = true;
         }
     } 
     else if (card.type === 'virus') {
-        let target = rivalBody.find(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
+        let candidates = rivalBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
+        let target = null;
+
+        if (forcedTargetColor) {
+            target = candidates.find(o => o.color === forcedTargetColor);
+        } else if (candidates.length > 0) {
+            target = candidates[0];
+        }
+
         if (target) {
             if (target.vaccines > 0) target.vaccines--; 
             else if (!target.infected) target.infected = true; 
             else { 
-                // Eliminar órgano
                 if (isPlayerMove) aiBody = aiBody.filter(o => o !== target);
                 else playerBody = playerBody.filter(o => o !== target);
                 discardPile.push({color: target.color, type: 'organ'}); 
@@ -357,40 +319,33 @@ function executeMove(index, isPlayerMove) {
     if (actionSuccess) {
         if (!keepCard) discardPile.push(card);
         currentHand.splice(index, 1);
-        
-        // Robar carta
         while (currentHand.length < 3) { let c = drawCard(); if(c) currentHand.push(c); else break; }
 
         if (isMultiplayer) {
-            myTurn = !myTurn; // Cambiar turno
-            broadcastState(); // Enviar estado nuevo a todos
+            myTurn = !myTurn; 
+            broadcastState();
         } else {
-            // Single Player
             render();
             if (!checkWin()) setTimeout(aiTurn, 1000);
             return;
         }
-    } else {
-        if(isPlayerMove && !isMultiplayer) notify("❌ Jugada no válida");
-        // En MP Host, si la jugada del cliente falla, no hacemos nada (o mandamos error)
-        // Por ahora, simplemente no avanza turno
-    }
+    } 
     
     render();
     checkWin();
 }
 
 function executeRemoteMove(moveData) {
-    // El Host recibe esto. moveData.index es el índice de la carta en aiHand (mano del cliente)
     if (moveData.action === 'play') {
-        executeMove(moveData.index, false); 
+        // Ejecutamos la jugada del rival con el color que él eligió
+        executeMove(moveData.index, false, moveData.targetColor); 
     }
     if (moveData.action === 'discard') {
          let card = aiHand[moveData.index];
          discardPile.push(card);
          aiHand.splice(moveData.index, 1);
          while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); else break; }
-         myTurn = !myTurn; // Turno vuelve al host
+         myTurn = !myTurn;
          broadcastState();
          render();
     }
@@ -409,21 +364,18 @@ function applyTreatment(name, isPlayer) {
                 success = true; 
             } break;
         case 'Trasplante': 
-             // Simplificación MP: Intercambia los primeros válidos que encuentre
-             // (Implementar lógica completa MP requiere mensajes complejos de ida/vuelta)
+             // Lógica simplificada segura
              let myC = myBody.filter(o => o.vaccines < 2);
              let enC = enemyBody.filter(o => o.vaccines < 2);
              if(myC.length > 0 && enC.length > 0) {
-                 // Intercambio básico
-                 let m = myC[0]; let e = enC[0];
-                 // Verificar colores... (simplificado: éxito directo para fluidez)
-                  if (isPlayer) {
-                        playerBody = playerBody.filter(o => o !== m); aiBody = aiBody.filter(o => o !== e);
-                        playerBody.push(e); aiBody.push(m);
-                    } else {
-                        aiBody = aiBody.filter(o => o !== m); playerBody = playerBody.filter(o => o !== e);
-                        aiBody.push(e); playerBody.push(m);
-                    }
+                 let m = myC[0]; let e = enC[0]; // Intercambio básico
+                 if (isPlayer) {
+                    playerBody = playerBody.filter(o => o !== m); aiBody = aiBody.filter(o => o !== e);
+                    playerBody.push(e); aiBody.push(m);
+                } else {
+                    aiBody = aiBody.filter(o => o !== m); playerBody = playerBody.filter(o => o !== e);
+                    aiBody.push(e); playerBody.push(m);
+                }
                  success = true;
              }
              break;
@@ -453,22 +405,37 @@ function quickDiscard(index) {
     
     if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
     else { render(); setTimeout(aiTurn, 1000); }
-    
     render();
 }
 
 function aiTurn() {
     if (isMultiplayer) return; 
-    // IA Básica para Single Player
     let played = false;
-    // (Aquí iría la lógica completa de IA si quieres mantener SP fuerte)
     if(!played) { discardPile.push(aiHand[0]); aiHand.splice(0,1); }
     while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
     render(); checkWin();
 }
 
+// --- RENDERIZADO CON COLORES DE TURNO ---
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
+    
+    // CAMBIO DE COLORES DE FONDO SEGÚN TURNO
+    const playerSection = document.querySelector('.board-section:last-of-type'); // Tu cuerpo
+    const rivalSection = document.querySelector('.board-section:first-of-type'); // Rival
+    
+    if (myTurn) {
+        playerSection.classList.add('active-turn');
+        playerSection.classList.remove('waiting-turn');
+        rivalSection.classList.add('active-turn'); // Rival verde (objetivo)
+        rivalSection.classList.remove('waiting-turn');
+    } else {
+        playerSection.classList.add('waiting-turn'); // Rojo (espera)
+        playerSection.classList.remove('active-turn');
+        rivalSection.classList.add('waiting-turn');
+        rivalSection.classList.remove('active-turn');
+    }
+
     const pHandDiv = document.getElementById('player-hand');
     if(pHandDiv) {
         pHandDiv.innerHTML = ''; 
