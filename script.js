@@ -33,8 +33,8 @@ const icons = {
 function startLocalGame() {
     isMultiplayer = false;
     isHost = true;
-    opponentName = "JULIO"; // Rival por defecto
-    myPlayerName = document.getElementById('username').value || "Jugador"; // Nombre o defecto
+    opponentName = "JULIO"; 
+    myPlayerName = document.getElementById('username').value || "Jugador"; 
     
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
@@ -50,12 +50,26 @@ function showMultiplayerOptions() {
     document.getElementById('mp-options').style.display = 'block';
 }
 
+// --- ESTA ERA LA FUNCIÓN QUE FALTABA ---
+function joinRoomUI() {
+    // Ocultar botones iniciales para limpiar pantalla
+    document.querySelector('.mp-action-btn.host').style.display = 'none';
+    document.querySelector('.mp-action-btn.join').style.display = 'none';
+    // Mostrar input
+    document.getElementById('join-input-area').style.display = 'block';
+}
+// ----------------------------------------
+
 function generateRoomCode() {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-// --- LÓGICA RED (HANDSHAKE AÑADIDO) ---
+// --- LÓGICA RED ---
 function createRoom() {
+    // Ocultar botones iniciales
+    document.querySelector('.mp-action-btn.host').style.display = 'none';
+    document.querySelector('.mp-action-btn.join').style.display = 'none';
+
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
@@ -65,7 +79,6 @@ function createRoom() {
     peer.on('connection', (connection) => {
         conn = connection;
         setupConnection();
-        // Esperamos a recibir el nombre del rival para empezar
     });
 }
 
@@ -118,7 +131,6 @@ function handleNetworkData(data) {
         } else {
             isMultiplayer = true;
             isHost = false;
-            // El cliente solo espera el estado
         }
     }
 
@@ -366,7 +378,31 @@ function applyTreatment(name, isPlayer) {
                 success = true; 
             } break;
         case 'Trasplante': 
-             success = true; 
+             // ARREGLADO: Lógica de trasplante para multiplayer
+             let myCandidates = myBody.filter(o => o.vaccines < 2);
+             let enCandidates = enemyBody.filter(o => o.vaccines < 2);
+             let swapFound = false;
+
+             for (let m of myCandidates) {
+                for (let e of enCandidates) {
+                    let myDupe = myBody.some(curr => curr !== m && curr.color === e.color);
+                    let enDupe = enemyBody.some(curr => curr !== e && curr.color === m.color);
+                    if (!myDupe && !enDupe) {
+                        if (isPlayer) {
+                            playerBody = playerBody.filter(o => o !== m); aiBody = aiBody.filter(o => o !== e);
+                            playerBody.push(e); aiBody.push(m);
+                        } else {
+                            aiBody = aiBody.filter(o => o !== m); playerBody = playerBody.filter(o => o !== e);
+                            aiBody.push(e); playerBody.push(m);
+                        }
+                        swapFound = true;
+                        break; 
+                    }
+                }
+                if (swapFound) break;
+             }
+             if (swapFound) success = true;
+             else if (isPlayer) notify("⚠️ No hay cambio válido");
              break;
         case 'Contagio': 
             let myV = myBody.filter(o => o.infected); 
@@ -384,9 +420,30 @@ function applyTreatment(name, isPlayer) {
 function aiTurn() {
     if (isMultiplayer) return; 
     
+    // IA "Julio" mejorada
     let played = false;
-    if(!played) {
-        discardPile.push(aiHand[0]); aiHand.splice(0,1);
+    for (let i = 0; i < aiHand.length; i++) {
+        let card = aiHand[i];
+        if (card.type === 'treatment') { played = applyTreatment(card.name, false); }
+        else if (card.type === 'organ' && !aiBody.find(o => o.color === card.color)) {
+            aiBody.push({color: card.color, vaccines: 0, infected: false}); played = true;
+        } else if (card.type === 'virus') {
+            let t = playerBody.find(o => (o.color === card.color || card.color === 'multicolor') && o.vaccines < 2);
+            if(t) { 
+                if(t.vaccines > 0) t.vaccines--; else if(!t.infected) t.infected = true; 
+                else { playerBody = playerBody.filter(o => o !== t); discardPile.push({color: t.color, type: 'organ'}); }
+                played = true; discardPile.push(card);
+            }
+        } else if (card.type === 'medicine') {
+            let t = aiBody.find(o => (o.color === card.color || card.color === 'multicolor') && (o.infected || o.vaccines < 2));
+            if(t) { if(t.infected) t.infected = false; else t.vaccines++; played = true; discardPile.push(card); }
+        }
+        if (played) { aiHand.splice(i, 1); break; }
+    }
+    
+    if (!played) { 
+        discardPile.push(aiHand[0]); aiHand.splice(0, 1); 
+        notify("🤖 Julio pasó turno"); 
     }
     while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
     render(); checkWin();
