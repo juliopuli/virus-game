@@ -41,7 +41,6 @@ body {
 
 .menu-box h1 { margin-top: 0; font-size: 2.5rem; color: var(--accent-green); text-shadow: 0 2px 0 black; margin-bottom: 15px; }
 
-/* INPUT DE NOMBRE */
 .name-input {
     width: 100%; padding: 12px; margin-bottom: 15px;
     border-radius: 10px; border: 2px solid rgba(255,255,255,0.2);
@@ -71,7 +70,7 @@ body {
 @keyframes pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
 .blurred { filter: blur(5px); pointer-events: none; }
 
-/* --- RESTO DEL CSS (JUEGO) --- */
+/* --- JUEGO --- */
 #game-container { width: 100%; max-width: 900px; display: flex; flex-direction: column; gap: 12px; margin: auto; transition: 0.3s; }
 #scoreboard-area { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
 .score-controls { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; }
@@ -81,7 +80,29 @@ body {
 .score-box.player span { color: var(--accent-green); font-size: 1.1rem; }
 .score-box.ai span { color: var(--accent-red); font-size: 1.1rem; }
 #notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 10px; text-align: center; font-weight: 800; border-radius: 10px; font-size: 0.9rem; text-shadow: 0 1px 0 rgba(255,255,255,0.2); }
-.board-section { background: rgba(0, 0, 0, 0.25); padding: 10px; border-radius: 16px; border: 1px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; align-items: center; overflow: hidden; }
+
+/* SECCIONES Y FONDOS DE TURNO */
+.board-section { 
+    background: rgba(0, 0, 0, 0.25); 
+    padding: 10px; 
+    border-radius: 16px; 
+    border: 2px solid rgba(255,255,255,0.05); 
+    display: flex; flex-direction: column; align-items: center; overflow: hidden; 
+    transition: background-color 0.3s, border-color 0.3s;
+}
+
+/* CLASES PARA INDICAR TURNO */
+.active-turn {
+    background-color: rgba(46, 204, 113, 0.15) !important;
+    border-color: #2ecc71 !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.2);
+}
+
+.waiting-turn {
+    background-color: rgba(231, 76, 60, 0.1) !important;
+    border-color: #e74c3c !important;
+}
+
 h3 { margin: 0 0 8px 0; opacity: 0.9; font-size: 1rem; width: 100%; text-align: center; font-weight: 600; }
 .powered-by { font-size: 0.7rem; color: rgba(255, 255, 255, 0.4); margin-top: 5px; margin-bottom: 5px; font-style: italic; width: 100%; text-align: center; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; bottom: calc(5px + env(safe-area-inset-bottom)); font-size: 0.65rem; color: rgba(255, 255, 255, 0.3); font-style: italic; z-index: 1000; pointer-events: none; }
