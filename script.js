@@ -10,6 +10,7 @@ let isHost = false;
 let peer = null;
 let conn = null;
 let myTurn = true; 
+let lastActionLog = "Partida lista"; // NUEVO: Para guardar qué pasó
 
 // Identidad
 let myPlayerName = "Jugador";
@@ -28,27 +29,16 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- CONFIGURACIÓN DE RED (STUN SERVERS) ---
-// Esto ayuda a evitar el error "Lost connection" en redes móviles o routers estrictos
-const peerConfig = {
-    config: {
-        'iceServers': [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
-    },
-    debug: 1 // Nivel de logs bajo para no saturar
-};
+const peerConfig = { config: { 'iceServers': [ { urls: 'stun:stun.l.google.com:19302' } ] }, debug: 1 };
 
-// --- MENÚ Y ARRANQUE ---
+// --- ARRANQUE ---
 function startLocalGame() {
-    isMultiplayer = false;
-    isHost = true;
-    if(peer) { peer.destroy(); peer = null; }
-    conn = null;
+    isMultiplayer = false; isHost = true;
+    if(peer) { peer.destroy(); peer = null; } conn = null;
     
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
+    lastActionLog = "Partida Local Iniciada";
     
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
@@ -75,89 +65,57 @@ function joinRoomUI() {
 
 function generateRoomCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
 
-// --- RED (PEERJS) ---
+// --- RED ---
 function createRoom() {
     let btns = document.querySelectorAll('.mp-action-btn');
     btns.forEach(b => b.style.display = 'none');
-
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
-    
     if(peer) peer.destroy();
     peer = new Peer('virus_game_' + code, peerConfig);
-    
     peer.on('open', (id) => { isHost = true; });
-    peer.on('connection', (connection) => { 
-        conn = connection; 
-        setupConnection(); 
-    });
-    peer.on('error', (err) => {
-        console.log(err);
-        alert("Error de red: " + err.type);
-    });
+    peer.on('connection', (connection) => { conn = connection; setupConnection(); });
+    peer.on('error', (err) => alert("Error red: " + err.type));
 }
 
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value.toUpperCase();
-    if (!code) return alert("Introduce un código");
-    
+    if (!code) return alert("Falta código");
     isHost = false; 
     if(peer) peer.destroy();
-    
-    peer = new Peer(null, peerConfig); // Usar config STUN
-    
-    peer.on('open', (id) => { 
+    peer = new Peer(null, peerConfig);
+    peer.on('open', () => { 
         conn = peer.connect('virus_game_' + code); 
-        
-        if(!conn) { alert("No se pudo conectar. Revisa el código."); return; }
-        
+        if(!conn) { alert("Error conexión"); return; }
         setupConnection(); 
     });
-    
-    peer.on('error', (err) => {
-        console.log(err);
-        if(err.type === 'peer-unavailable') alert("Partida no encontrada. Revisa el código.");
-        else alert("Error al conectar: " + err.type);
-    });
+    peer.on('error', (err) => alert("Error: " + err.type));
 }
 
 function setupConnection() {
-    conn.on('open', () => { 
-        sendData('HANDSHAKE', { name: myPlayerName }); 
-    });
+    conn.on('open', () => { sendData('HANDSHAKE', { name: myPlayerName }); });
     conn.on('data', (data) => { handleNetworkData(data); });
-    conn.on('close', () => { 
-        alert("Conexión perdida con el rival."); 
-        location.reload(); 
-    });
+    conn.on('close', () => { alert("Desconectado"); location.reload(); });
 }
 
 function sendData(type, content) {
-    if (conn && conn.open) { 
-        try { conn.send({ type: type, content: content }); } 
-        catch(e) { console.error(e); }
-    }
+    if (conn && conn.open) { try { conn.send({ type: type, content: content }); } catch(e){} }
 }
 
 function handleNetworkData(data) {
     if (data.type === 'HANDSHAKE') {
         opponentName = data.content.name.toUpperCase();
-        
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
         document.getElementById('connection-status').innerText = "";
-        
         isMultiplayer = true;
-
         if (isHost) {
             sendData('HANDSHAKE_REPLY', { name: myPlayerName });
             document.getElementById('restart-btn').style.display = 'none';
             document.getElementById('target-wins').disabled = false; 
-            
-            // Inicio de torneo nuevo (reset marcador)
             playerWins = 0; aiWins = 0;
             updateScoreboard();
             setTimeout(() => initGame(), 500); 
@@ -170,15 +128,30 @@ function handleNetworkData(data) {
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-        
         isMultiplayer = true;
         document.getElementById('target-wins').disabled = true; 
         document.getElementById('restart-btn').style.display = 'none';
-        notify("Conectado. Esperando reparto...");
+        notify("Conectado. Esperando...");
     }
 
     if (data.type === 'STATE_UPDATE') {
         applyGameState(data.content);
+    }
+    
+    // NUEVO: Mensaje de Fin de Ronda desde el Host
+    if (data.type === 'ROUND_OVER') {
+        const info = data.content;
+        // Mostrar alerta al cliente
+        if (info.winner === 'client') alert("¡GANASTE LA RONDA!");
+        else alert("¡" + opponentName + " GANA LA RONDA!");
+        
+        // Si hay fin de torneo, mostrar mensaje extra
+        if (info.tournamentOver) {
+            setTimeout(() => {
+                if (info.winner === 'client') alert("🏆 ¡CAMPEÓN DEL TORNEO!");
+                else alert("💀 " + opponentName + " GANA EL TORNEO");
+            }, 500);
+        }
     }
     
     if (data.type === 'MOVE' && isHost) {
@@ -187,6 +160,7 @@ function handleNetworkData(data) {
             indices.forEach(i => { discardPile.push(aiHand[i]); aiHand.splice(i,1); });
             while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); else break; }
             myTurn = !myTurn;
+            lastActionLog = opponentName + " descartó " + indices.length + " cartas";
             broadcastState();
             render();
         } else {
@@ -196,33 +170,22 @@ function handleNetworkData(data) {
 }
 
 function applyGameState(state) {
-    playerHand = state.p2Hand || []; 
-    aiHand = state.p1Hand || [];     
-    playerBody = state.p2Body || []; 
-    aiBody = state.p1Body || [];
-    deck = state.deck || []; 
-    discardPile = state.discard || [];
-    
+    playerHand = state.p2Hand || []; aiHand = state.p1Hand || [];     
+    playerBody = state.p2Body || []; aiBody = state.p1Body || [];
+    deck = state.deck || []; discardPile = state.discard || [];
     myTurn = (state.turn === 'p2'); 
-    playerWins = state.wins.p2;
-    aiWins = state.wins.p1;
+    playerWins = state.wins.p2; aiWins = state.wins.p1;
+    lastActionLog = state.lastLog || ""; // Sincronizar log
     
     updateScoreboard();
     render(); 
-    
-    if (myTurn) notify("¡Tu turno, " + myPlayerName + "!");
-    else notify("Turno de " + opponentName + "...");
-    
-    // Verificación de victoria remota (solo visual)
-    if (checkWinCondition(playerBody) || checkWinCondition(aiBody)) {
-        // No hacemos alert aquí para evitar dobles alertas, esperamos el siguiente estado o reinicio
-    }
 }
 
 // --- JUEGO CORE ---
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
+    lastActionLog = "Nueva partida";
     
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -246,10 +209,9 @@ function initGame() {
     render(); 
     
     if (isMultiplayer && isHost) {
-        notify("Tu turno, " + myPlayerName); 
         setTimeout(broadcastState, 300); 
     } else if (!isMultiplayer) { 
-        notify("¡A jugar! Derrota a " + opponentName); 
+        notify("¡A jugar! vs " + opponentName); 
     }
 }
 
@@ -260,7 +222,8 @@ function broadcastState() {
         p1Body: playerBody, p2Body: aiBody,
         deck: deck, discard: discardPile,
         turn: myTurn ? 'p1' : 'p2',
-        wins: { p1: playerWins, p2: aiWins }
+        wins: { p1: playerWins, p2: aiWins },
+        lastLog: lastActionLog // Enviamos el log
     };
     sendData('STATE_UPDATE', gameState);
 }
@@ -279,17 +242,29 @@ function loadScores() {
     }
 }
 
-// --- LÓGICA DE TORNEO (SOLUCIÓN BUG MARCADOR) ---
-function handleWin(winner) {
+// --- VICTORIA Y RONDAS ---
+function checkWin() {
+    if (isMultiplayer && !isHost) return; 
+
+    let roundWinner = null;
+    if (checkWinCondition(playerBody)) roundWinner = 'player';
+    else if (checkWinCondition(aiBody)) roundWinner = 'ai';
+
+    if (roundWinner) {
+        handleRoundEnd(roundWinner);
+    }
+}
+
+function handleRoundEnd(winner) {
     const target = parseInt(document.getElementById('target-wins').value) || 5;
-    
-    let roundMsg = "";
+    let tournamentOver = false;
+
     if (winner === 'player') {
         playerWins++;
-        roundMsg = "¡GANASTE LA RONDA!";
+        alert("¡GANASTE LA RONDA!");
     } else {
         aiWins++;
-        roundMsg = "¡" + opponentName + " GANA LA RONDA!";
+        alert("¡" + opponentName + " GANA LA RONDA!");
     }
 
     if (!isMultiplayer) {
@@ -298,60 +273,52 @@ function handleWin(winner) {
     }
 
     updateScoreboard();
-    if(isMultiplayer && isHost) broadcastState();
 
-    // Comprobar si termina el torneo
+    // Chequear Torneo
     if (playerWins >= target) {
-        setTimeout(() => { 
-            alert(`🏆 ¡CAMPEÓN DEL TORNEO: ${myPlayerName}!`); 
-            resetSeries(); 
-        }, 100);
+        tournamentOver = true;
+        setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
     } else if (aiWins >= target) {
-        setTimeout(() => { 
-            alert(`💀 EL TORNEO LO GANA ${opponentName}`); 
-            resetSeries(); 
-        }, 100);
+        tournamentOver = true;
+        setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
     } else {
-        // Solo es una ronda, seguimos jugando
-        setTimeout(() => { 
-            alert(`${roundMsg}\nMarcador: ${playerWins} - ${aiWins}`);
-            initGame(); // Reinicia mesa, mantiene puntos
-        }, 100);
+        // Nueva ronda
+        setTimeout(() => initGame(), 500);
+    }
+
+    // SI ES ONLINE, AVISAR AL CLIENTE
+    if (isMultiplayer && isHost) {
+        let clientResult = (winner === 'ai') ? 'client' : 'host'; // Si gana AI (p2), gana Cliente
+        sendData('ROUND_OVER', { winner: clientResult, tournamentOver: tournamentOver });
+        broadcastState();
     }
 }
 
+function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
+
 function resetSeries() {
-    // Resetear marcador a 0
     playerWins = 0; aiWins = 0;
-    if (!isMultiplayer) { 
-        localStorage.setItem('virus_playerWins', 0); 
-        localStorage.setItem('virus_aiWins', 0); 
-    }
+    if (!isMultiplayer) { localStorage.setItem('virus_playerWins', 0); localStorage.setItem('virus_aiWins', 0); }
     initGame();
 }
 
 function confirmRestartSeries() {
     if(isMultiplayer && !isHost) return;
-    setTimeout(() => { if(confirm("¿Reiniciar partida y marcador?")) resetSeries(); }, 50);
+    setTimeout(() => { if(confirm("¿Reiniciar torneo?")) resetSeries(); }, 50);
 }
 
-function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
-
-// Modificamos checkWin para usar la nueva lógica
-function checkWin() {
-    // Si soy cliente MP, no decido victorias, solo recibo estado
-    if (isMultiplayer && !isHost) return; 
-
-    if (checkWinCondition(playerBody)) {
-        handleWin('player');
-    } else if (checkWinCondition(aiBody)) {
-        handleWin('ai');
-    }
-}
-
+// --- NOTIFICACIONES ACTUALIZADAS ---
 function notify(msg) { 
     const el = document.getElementById('notification-bar');
-    if(el) el.innerText = msg; 
+    if(!el) return;
+    
+    // Si estamos jugando, mostramos Turno + Última Acción
+    if (gameActive || (deck.length > 0)) {
+        let turnMsg = myTurn ? `Tu Turno (${myPlayerName})` : `Turno de ${opponentName}`;
+        el.innerHTML = `<span>${turnMsg}</span> <span style="opacity:0.6">|</span> <span style="font-weight:400; font-style:italic">${lastActionLog}</span>`;
+    } else {
+        el.innerText = msg; // Mensajes de sistema (Esperando...)
+    }
 }
 
 function drawCard() {
@@ -362,7 +329,7 @@ function drawCard() {
 
 // --- LOGICA JUEGO ---
 function playCard(index) {
-    if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
+    if (isMultiplayer && !myTurn) { notify("⛔ No es tu turno"); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
 
     const card = playerHand[index];
@@ -394,7 +361,7 @@ function playCard(index) {
             }
             if (!selectedColor) return;
         } else if (stealable.length === 0) {
-            notify("⚠️ No hay órganos para robar"); return;
+            alert("⚠️ No hay órganos para robar"); return;
         }
     }
 
@@ -410,21 +377,29 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
     let currentHand = isPlayerMove ? playerHand : aiHand;
     let currentBody = isPlayerMove ? playerBody : aiBody;
     let rivalBody = isPlayerMove ? aiBody : playerBody;
+    let actorName = isPlayerMove ? (isHost ? myPlayerName : opponentName) : (isHost ? opponentName : myPlayerName);
     
+    // Ajuste de nombre para local
+    if (!isMultiplayer && !isPlayerMove) actorName = opponentName;
+    if (!isMultiplayer && isPlayerMove) actorName = "Tú";
+
     const card = currentHand[index];
     if(!card) return;
 
     let actionSuccess = false;
     let keepCard = false;
+    let actionDesc = "";
 
     if (card.type === 'treatment') {
         actionSuccess = applyTreatment(card.name, isPlayerMove, forcedTargetColor);
+        if(actionSuccess) actionDesc = `Usó ${card.name}`;
     } 
     else if (card.type === 'organ') {
         if (!currentBody.find(o => o.color === card.color)) { 
             currentBody.push({color: card.color, vaccines: 0, infected: false}); 
             actionSuccess = true; keepCard = true; 
-        } else if(isPlayerMove && !isMultiplayer) notify("⚠️ Ya tienes ese color");
+            actionDesc = `Sacó Órgano ${card.color.toUpperCase()}`;
+        } else if(isPlayerMove && !isMultiplayer) alert("⚠️ Ya tienes ese color");
     } 
     else if (card.type === 'medicine') {
         let candidates = currentBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
@@ -433,9 +408,10 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
         else if (candidates.length > 0) target = candidates[0];
 
         if (target) {
-             if (target.infected) target.infected = false; else target.vaccines++; 
+             if (target.infected) { target.infected = false; actionDesc = `Curó Órgano ${target.color}`; }
+             else { target.vaccines++; actionDesc = `Vacunó Órgano ${target.color}`; }
              actionSuccess = true;
-        } else if(isPlayerMove && !isMultiplayer) notify("⚠️ No hay objetivo válido");
+        } else if(isPlayerMove && !isMultiplayer) alert("⚠️ No hay objetivo válido");
     } 
     else if (card.type === 'virus') {
         let candidates = rivalBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
@@ -444,15 +420,16 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
         else if (candidates.length > 0) target = candidates[0];
 
         if (target) {
-            if (target.vaccines > 0) target.vaccines--; 
-            else if (!target.infected) target.infected = true; 
+            if (target.vaccines > 0) { target.vaccines--; actionDesc = `Destruyó vacuna en ${target.color}`; }
+            else if (!target.infected) { target.infected = true; actionDesc = `Infectó Órgano ${target.color}`; }
             else { 
                 if (isPlayerMove) aiBody = aiBody.filter(o => o !== target);
                 else playerBody = playerBody.filter(o => o !== target);
                 discardPile.push({color: target.color, type: 'organ'}); 
+                actionDesc = `Extirpó Órgano ${target.color}`;
             }
             actionSuccess = true;
-        } else if(isPlayerMove && !isMultiplayer) notify("⚠️ No puedes infectar nada");
+        } else if(isPlayerMove && !isMultiplayer) alert("⚠️ No puedes infectar nada");
     }
 
     if (actionSuccess) {
@@ -460,12 +437,15 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
         currentHand.splice(index, 1);
         while (currentHand.length < 3) { let c = drawCard(); if(c) currentHand.push(c); else break; }
 
+        lastActionLog = `${actorName}: ${actionDesc}`; // GUARDAR LOG
+
         if (isMultiplayer) {
             myTurn = !myTurn; 
             broadcastState();
         } else {
             render();
-            if (!checkWin()) setTimeout(aiTurn, 1000);
+            if (!checkWinCondition(playerBody) && !checkWinCondition(aiBody)) setTimeout(aiTurn, 1000);
+            else checkWin(); // Revisar victoria inmediata
             return;
         }
     } 
@@ -481,6 +461,7 @@ function executeRemoteMove(moveData) {
          aiHand.splice(moveData.index, 1);
          while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); else break; }
          myTurn = !myTurn;
+         lastActionLog = `${opponentName}: Descartó carta`;
          broadcastState();
          render();
     }
@@ -502,7 +483,7 @@ function applyTreatment(name, isPlayer, forcedTargetColor = null) {
                 if (isPlayer) { playerBody.push(targetToSteal); aiBody = aiBody.filter(o => o !== targetToSteal); } 
                 else { aiBody.push(targetToSteal); playerBody = playerBody.filter(o => o !== targetToSteal); } 
                 success = true; 
-            } else if (isPlayer && !isMultiplayer) notify("⚠️ No puedes robar nada válido");
+            } else if (isPlayer && !isMultiplayer) alert("⚠️ No puedes robar nada válido");
             break;
 
         case 'Trasplante': 
@@ -527,7 +508,7 @@ function applyTreatment(name, isPlayer, forcedTargetColor = null) {
                 if (swapFound) break;
              }
              if (swapFound) success = true;
-             else if (isPlayer && !isMultiplayer) notify("⚠️ Trasplante imposible");
+             else if (isPlayer && !isMultiplayer) alert("⚠️ Trasplante imposible");
              break;
 
         case 'Contagio': 
@@ -553,6 +534,8 @@ function quickDiscard(index) {
     playerHand.splice(index, 1);
     while (playerHand.length < 3) { let c = drawCard(); if(c) playerHand.push(c); else break; }
     
+    lastActionLog = (isHost ? myPlayerName : opponentName) + ": Descartó carta";
+
     if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
     else { render(); setTimeout(aiTurn, 1000); }
     render();
@@ -561,14 +544,33 @@ function quickDiscard(index) {
 function aiTurn() {
     if (isMultiplayer) return; 
     let played = false;
+    // IA Básica pero funcional
     for(let i=0; i<aiHand.length; i++) {
         let c = aiHand[i];
         if(c.type === 'organ' && !aiBody.find(o=>o.color === c.color)) {
             aiBody.push({color: c.color, vaccines:0, infected:false});
-            aiHand.splice(i,1); played = true; break;
+            aiHand.splice(i,1); played = true; 
+            lastActionLog = `Julio: Sacó Órgano ${c.color}`;
+            break;
+        }
+        if(c.type === 'virus') {
+             let t = playerBody.find(o => (o.color === c.color || c.color === 'multicolor') && o.vaccines < 2);
+             if(t) { 
+                 if(t.vaccines > 0) { t.vaccines--; lastActionLog = `Julio: Quitó vacuna a ${t.color}`; }
+                 else if(!t.infected) { t.infected = true; lastActionLog = `Julio: Infectó ${t.color}`; }
+                 else { 
+                     playerBody = playerBody.filter(o=>o!==t); discardPile.push(t);
+                     lastActionLog = `Julio: Extirpó ${t.color}`;
+                 }
+                 aiHand.splice(i,1); played = true; discardPile.push(c);
+                 break; 
+             }
         }
     }
-    if(!played) { discardPile.push(aiHand[0]); aiHand.splice(0,1); }
+    if(!played) { 
+        discardPile.push(aiHand[0]); aiHand.splice(0,1); 
+        lastActionLog = "Julio: Pasó turno";
+    }
     while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
     render(); checkWin();
 }
@@ -576,6 +578,9 @@ function aiTurn() {
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
     
+    // NOTIFICACIÓN DIVIDIDA (Turno | Acción)
+    notify(""); // Esto llamará a la función que usa lastActionLog
+
     const playerSection = document.querySelector('.board-section:last-of-type'); 
     const rivalSection = document.querySelector('.board-section:first-of-type'); 
     
@@ -650,6 +655,9 @@ function confirmMultiDiscard() {
     } else {
         indices.forEach(i => { discardPile.push(playerHand[i]); playerHand.splice(i, 1); });
         while (playerHand.length < 3) { let c = drawCard(); if(c) playerHand.push(c); else break; }
+        
+        lastActionLog = (isHost ? myPlayerName : opponentName) + " descartó " + indices.length;
+
         if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
         else { render(); setTimeout(aiTurn, 1000); }
     }
