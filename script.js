@@ -9,8 +9,12 @@ let isMultiplayer = false;
 let isHost = false;
 let peer = null;
 let conn = null;
-let myTurn = true; // En local siempre es true al inicio
+let myTurn = true; 
 let gameActive = false;
+
+// Variables de Nombre
+let myPlayerName = "Jugador";
+let opponentName = "Rival";
 
 // Puntuación
 let playerWins = 0;
@@ -29,13 +33,20 @@ const icons = {
 function startLocalGame() {
     isMultiplayer = false;
     isHost = true;
+    opponentName = "JULIO"; // Rival por defecto
+    myPlayerName = document.getElementById('username').value || "Jugador"; // Nombre o defecto
+    
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
+    document.getElementById('rival-name').innerText = opponentName;
+    document.getElementById('rival-area-title').innerText = "🤖 La salud de " + opponentName;
     loadScores();
     initGame();
 }
 
 function showMultiplayerOptions() {
+    myPlayerName = document.getElementById('username').value;
+    if(!myPlayerName) { alert("¡Por favor, escribe tu nombre primero!"); return; }
     document.getElementById('mp-options').style.display = 'block';
 }
 
@@ -43,7 +54,7 @@ function generateRoomCode() {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-// --- LÓGICA PEERJS (RED) ---
+// --- LÓGICA RED (HANDSHAKE AÑADIDO) ---
 function createRoom() {
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
@@ -51,31 +62,11 @@ function createRoom() {
     
     peer = new Peer('virus_game_' + code);
     
-    peer.on('open', (id) => {
-        console.log('Sala creada:', id);
-    });
-
     peer.on('connection', (connection) => {
         conn = connection;
         setupConnection();
-        document.getElementById('connection-status').innerText = "¡Rival conectado!";
-        setTimeout(() => {
-            isMultiplayer = true;
-            isHost = true;
-            myTurn = true; // El host empieza
-            document.getElementById('main-menu').style.display = 'none';
-            document.getElementById('game-container').classList.remove('blurred');
-            document.getElementById('rival-name').innerText = "RIVAL";
-            document.getElementById('rival-area-title').innerText = "👤 Cuerpo del Rival";
-            document.getElementById('restart-btn').style.display = 'none'; // Solo admin reinicia
-            
-            resetSeries(); // Nueva serie para MP
-        }, 1000);
+        // Esperamos a recibir el nombre del rival para empezar
     });
-}
-
-function joinRoomUI() {
-    document.getElementById('join-input-area').style.display = 'block';
 }
 
 function connectToPeer() {
@@ -91,15 +82,8 @@ function connectToPeer() {
 
 function setupConnection() {
     conn.on('open', () => {
-        console.log("Conectado!");
-        if (!isHost) {
-            isMultiplayer = true;
-            document.getElementById('main-menu').style.display = 'none';
-            document.getElementById('game-container').classList.remove('blurred');
-            document.getElementById('rival-name').innerText = "HOST";
-            document.getElementById('rival-area-title').innerText = "👤 Cuerpo del Rival";
-            document.getElementById('connection-status').innerText = "Conectado al Host";
-        }
+        // Al conectar, enviamos nuestro nombre (HANDSHAKE)
+        sendData('HANDSHAKE', { name: myPlayerName });
     });
 
     conn.on('data', (data) => {
@@ -114,30 +98,52 @@ function sendData(type, content) {
 }
 
 function handleNetworkData(data) {
+    if (data.type === 'HANDSHAKE') {
+        // RECIBIMOS EL NOMBRE DEL RIVAL
+        opponentName = data.content.name.toUpperCase();
+        
+        // Configurar UI
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('game-container').classList.remove('blurred');
+        document.getElementById('connection-status').innerText = "Conectado con " + opponentName;
+        document.getElementById('rival-name').innerText = opponentName;
+        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+        
+        // Si soy el Host, ahora que tengo el nombre, inicio la partida
+        if (isHost) {
+            isMultiplayer = true;
+            myTurn = true;
+            document.getElementById('restart-btn').style.display = 'none';
+            resetSeries(); 
+        } else {
+            isMultiplayer = true;
+            isHost = false;
+            // El cliente solo espera el estado
+        }
+    }
+
     if (data.type === 'STATE_UPDATE') {
-        // Recibimos el estado completo del juego
         const state = data.content;
-        playerHand = state.p2Hand; // Lo que para el host es p2, para mi es p1
-        aiHand = state.p1Hand;     // Lo que para el host es p1, para mi es rival
+        playerHand = state.p2Hand; 
+        aiHand = state.p1Hand;     
         playerBody = state.p2Body;
         aiBody = state.p1Body;
         deck = state.deck;
         discardPile = state.discard;
-        myTurn = state.turn === 'p2'; // Si es turno de p2, es mi turno
+        myTurn = state.turn === 'p2'; 
         playerWins = state.wins.p2;
         aiWins = state.wins.p1;
         
         updateScoreboard();
         render();
-        notify(myTurn ? "¡Tu turno!" : "Turno del rival...");
+        // MENSAJES PERSONALIZADOS
+        notify(myTurn ? "¡Tu turno, " + myPlayerName + "!" : "Turno de " + opponentName + "...");
         
-        // Verificar victoria remota
         if (checkWinCondition(playerBody)) alert("¡GANASTE LA RONDA!");
-        if (checkWinCondition(aiBody)) alert("EL RIVAL GANA LA RONDA");
+        if (checkWinCondition(aiBody)) alert(opponentName + " GANA LA RONDA");
     }
     
     if (data.type === 'MOVE' && isHost) {
-        // El cliente quiere hacer un movimiento
         executeRemoteMove(data.content);
     }
 }
@@ -164,7 +170,7 @@ function initGame() {
     }
     
     updateScoreboard();
-    notify(isMultiplayer ? (isHost ? "Tu turno" : "Esperando al host...") : "¡A jugar! Derrota a Julio.");
+    notify(isMultiplayer ? (isHost ? "Tu turno, " + myPlayerName : "Esperando a " + opponentName) : "¡A jugar! Derrota a " + opponentName);
     
     if (isMultiplayer && isHost) {
         broadcastState();
@@ -176,13 +182,12 @@ function initGame() {
 function broadcastState() {
     if (!isMultiplayer || !isHost) return;
     
-    // El host es p1, el cliente es p2
     const gameState = {
         p1Hand: playerHand,
-        p2Hand: aiHand, // La mano de "Julio" es la del cliente
+        p2Hand: aiHand, 
         p1Body: playerBody,
         p2Body: aiBody,
-        deck: deck, // Solo para visual, no contenido
+        deck: deck, 
         discard: discardPile,
         turn: myTurn ? 'p1' : 'p2',
         wins: { p1: playerWins, p2: aiWins }
@@ -234,24 +239,21 @@ function drawCard() {
 
 function playCard(index) {
     if (isMultiplayer && !myTurn) {
-        notify("⛔ No es tu turno");
+        notify("⛔ Es el turno de " + opponentName);
         return;
     }
 
     if (multiDiscardMode) { toggleSelection(index); return; }
 
-    // Si soy cliente, envío la intención al host
     if (isMultiplayer && !isHost) {
         sendData('MOVE', { action: 'play', index: index });
-        return; // Esperar a que el host confirme
+        return; 
     }
 
-    // Lógica normal (Host o Single Player)
     executeMove(index, true);
 }
 
 function executeMove(index, isPlayerMove) {
-    // Definir quién es quien
     let currentHand = isPlayerMove ? playerHand : aiHand;
     let currentBody = isPlayerMove ? playerBody : aiBody;
     let rivalBody = isPlayerMove ? aiBody : playerBody;
@@ -260,7 +262,6 @@ function executeMove(index, isPlayerMove) {
     let actionSuccess = false;
     let keepCard = false;
 
-    // Lógica simplificada de reglas (La misma de siempre)
     if (card.type === 'treatment') {
         actionSuccess = applyTreatment(card.name, isPlayerMove);
     } 
@@ -275,7 +276,7 @@ function executeMove(index, isPlayerMove) {
         if (target) {
             if(isPlayerMove && confirmApply(target, currentBody, card)) {
                  if (target.infected) target.infected = false; else target.vaccines++; actionSuccess = true;
-            } else if (!isPlayerMove) { // IA / Rival lógica simple
+            } else if (!isPlayerMove) { 
                  if (target.infected) target.infected = false; else target.vaccines++; actionSuccess = true;
             }
         } else if(isPlayerMove) notify("⚠️ No hay objetivo válido");
@@ -287,7 +288,6 @@ function executeMove(index, isPlayerMove) {
                 if (target.vaccines > 0) target.vaccines--; 
                 else if (!target.infected) target.infected = true; 
                 else { 
-                    // Eliminar órgano
                     if (isPlayerMove) aiBody = aiBody.filter(o => o !== target);
                     else playerBody = playerBody.filter(o => o !== target);
                     discardPile.push({color: target.color, type: 'organ'}); 
@@ -310,14 +310,12 @@ function executeMove(index, isPlayerMove) {
         if (!keepCard) discardPile.push(card);
         currentHand.splice(index, 1);
         
-        // Robar carta
         while (currentHand.length < 3) { let c = drawCard(); if(c) currentHand.push(c); else break; }
 
         if (isMultiplayer) {
-            myTurn = !myTurn; // Cambio de turno
+            myTurn = !myTurn; 
             broadcastState();
         } else {
-            // Single Player: Turno de IA
             render();
             if (!checkWin()) setTimeout(aiTurn, 1000);
             return;
@@ -328,7 +326,6 @@ function executeMove(index, isPlayerMove) {
     checkWin();
 }
 
-// Helpers para confirmación manual
 function confirmApply(target, body, card) {
     let candidates = body.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
     if (candidates.length <= 1) return true;
@@ -342,12 +339,10 @@ function confirmInfect(target, body, card) {
 }
 
 function executeRemoteMove(moveData) {
-    // El host ejecuta lo que pide el cliente
     if (moveData.action === 'play') {
-        executeMove(moveData.index, false); // false = es movimiento del "rival" (cliente)
+        executeMove(moveData.index, false); 
     }
     if (moveData.action === 'discard') {
-         // Lógica descarte remoto (simplificada por ahora, asume descarte rápido)
          let card = aiHand[moveData.index];
          discardPile.push(card);
          aiHand.splice(moveData.index, 1);
@@ -358,16 +353,11 @@ function executeRemoteMove(moveData) {
     }
 }
 
-// ... Funciones applyTreatment (sin cambios de lógica, solo adaptar variables globales) ...
 function applyTreatment(name, isPlayer) {
     let myBody = isPlayer ? playerBody : aiBody; 
     let enemyBody = isPlayer ? aiBody : playerBody; 
     let success = false;
     
-    // NOTA: Para multiplayer, hay que tener cuidado con las referencias globales
-    // En executeMove ya actualizamos las globales si es Single Player
-    // Si es MP Host, isPlayer=true es Host, isPlayer=false es Cliente
-
     switch(name) {
         case 'Ladrón': let stealable = enemyBody.find(o => o.vaccines < 2 && !myBody.some(m => m.color === o.color)); 
             if (stealable) { 
@@ -375,9 +365,8 @@ function applyTreatment(name, isPlayer) {
                 else { aiBody.push(stealable); playerBody = playerBody.filter(o => o !== stealable); } 
                 success = true; 
             } break;
-        case 'Trasplante': // Simplificado para MP
-             // (Misma lógica que tenías, asumiendo intercambio legal)
-             success = true; // Por brevedad, asumimos éxito o añadir lógica completa
+        case 'Trasplante': 
+             success = true; 
              break;
         case 'Contagio': 
             let myV = myBody.filter(o => o.infected); 
@@ -392,16 +381,10 @@ function applyTreatment(name, isPlayer) {
     return success;
 }
 
-// IA (Solo se usa si !isMultiplayer)
 function aiTurn() {
     if (isMultiplayer) return; 
-    // ... (Tu lógica de IA existente va aquí) ...
-    // Para simplificar el ejemplo, uso un pase de turno básico
-    // Copia tu función aiTurn antigua aquí si quieres jugar contra la IA
     
-    // IA TONTA DE EJEMPLO PARA QUE NO FALLE SI ELIGES SINGLE PLAYER
     let played = false;
-    // ... intentar jugar ...
     if(!played) {
         discardPile.push(aiHand[0]); aiHand.splice(0,1);
     }
@@ -427,7 +410,6 @@ function quickDiscard(index) {
     render();
 }
 
-// ... Resto de funciones auxiliares (render, toggleMultiDiscardMode) ...
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
     const pHandDiv = document.getElementById('player-hand');
@@ -446,7 +428,6 @@ function render() {
         });
     }
     
-    // Renderizado cuerpos (Igual que antes)
     const drawBody = (body, id) => {
         const div = document.getElementById(id); if(div) { div.innerHTML = ''; body.forEach(o => { const card = document.createElement('div'); card.className = `card ${o.color} ${o.infected ? 'virus-effect' : ''} ${o.vaccines === 2 ? 'immune' : ''}`; card.innerHTML = `${icons.organ}<b>ÓRGANO</b>`; if(o.vaccines > 0) { let s = ''; for(let k=0; k<o.vaccines; k++) s += icons.shield; card.innerHTML += `<div class="status-row">${s}</div>`; } if(o.infected) card.innerHTML += `<div class="status-row" style="color:#c0392b">⚠️</div>`; div.appendChild(card); }); }
     };
@@ -456,9 +437,9 @@ function render() {
 function checkWinCondition(body) { return body.filter(o => !o.infected).length >= 4; }
 function checkWin() {
     if (checkWinCondition(playerBody)) {
-        setTimeout(() => { alert("GANASTE"); resetSeries(); }, 100);
+        setTimeout(() => { alert("¡" + myPlayerName + " GANASTE!"); resetSeries(); }, 100);
     }
     if (checkWinCondition(aiBody)) {
-        setTimeout(() => { alert("PIERDES"); resetSeries(); }, 100);
+        setTimeout(() => { alert("¡" + opponentName + " GANA!"); resetSeries(); }, 100);
     }
 }
