@@ -11,7 +11,7 @@ let peer = null;
 let conn = null;
 let myTurn = true; 
 
-// Variables de Identidad
+// Identidad
 let myPlayerName = "Jugador";
 let opponentName = "Rival";
 
@@ -28,17 +28,18 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- MENÚ Y CONFIGURACIÓN ---
+// --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
-    // RESET TOTAL PARA MODO LOCAL
+    // Limpieza total de variables de red
     isMultiplayer = false;
-    isHost = true;
-    peer = null; conn = null;
+    isHost = true; // En local mandas tú
+    if(peer) { peer.destroy(); peer = null; }
+    conn = null;
     
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
     
-    // UI
+    // UI Setup
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
@@ -47,7 +48,7 @@ function startLocalGame() {
     document.getElementById('restart-btn').style.display = 'block';
     
     loadScores();
-    initGame();
+    initGame(); // Inicia directamente
 }
 
 function showMultiplayerOptions() {
@@ -66,7 +67,7 @@ function generateRoomCode() {
     return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-// --- LÓGICA RED (PROTOCOLO SEMÁFORO) ---
+// --- RED (PEERJS) ---
 function createRoom() {
     let btns = document.querySelectorAll('.mp-action-btn');
     btns.forEach(b => b.style.display = 'none');
@@ -77,9 +78,11 @@ function createRoom() {
     
     peer = new Peer('virus_game_' + code);
     peer.on('open', (id) => { isHost = true; });
+    
+    // Cuando alguien se conecta al Host...
     peer.on('connection', (connection) => { 
         conn = connection; 
-        setupConnectionHost(); 
+        setupConnectionEvents(); 
     });
 }
 
@@ -91,118 +94,96 @@ function connectToPeer() {
     peer = new Peer();
     peer.on('open', () => { 
         conn = peer.connect('virus_game_' + code); 
-        setupConnectionClient(); 
+        setupConnectionEvents();
+        // El cliente inicia la conversación enviando su nombre
+        setTimeout(() => {
+            if(conn && conn.open) conn.send({ type: 'HANDSHAKE', content: { name: myPlayerName } });
+        }, 500);
     });
 }
 
-// Configuración Eventos Host
-function setupConnectionHost() {
-    conn.on('data', (data) => {
-        if (data.type === 'JOIN_REQUEST') {
-            opponentName = data.content.name.toUpperCase();
-            
-            // Responder al cliente: ACEPTADO
-            conn.send({ type: 'JOIN_ACCEPTED', content: { hostName: myPlayerName } });
-            
-            // Actualizar UI Host
-            document.getElementById('main-menu').style.display = 'none';
-            document.getElementById('game-container').classList.remove('blurred');
-            document.getElementById('rival-name').innerText = opponentName;
-            document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-            document.getElementById('target-wins').disabled = false;
-            document.getElementById('restart-btn').style.display = 'none';
-            
-            notify("Esperando a que " + opponentName + " confirme...");
-        }
-        
-        if (data.type === 'CLIENT_READY') {
-            // El cliente ya cargó todo, empezamos
-            isMultiplayer = true;
-            resetSeries(); // Inicia el juego y manda cartas
-        }
-        
-        if (data.type === 'MOVE') executeRemoteMove(data.content);
-    });
-}
-
-// Configuración Eventos Cliente
-function setupConnectionClient() {
+function setupConnectionEvents() {
     conn.on('open', () => {
-        // Paso 1: Enviar solicitud
-        conn.send({ type: 'JOIN_REQUEST', content: { name: myPlayerName } });
+        // Si soy cliente, envío handshake aquí también por si acaso
+        if(!isHost) conn.send({ type: 'HANDSHAKE', content: { name: myPlayerName } });
     });
+    
+    conn.on('data', (data) => { handleNetworkData(data); });
+}
 
-    conn.on('data', (data) => {
-        if (data.type === 'JOIN_ACCEPTED') {
-            opponentName = data.content.hostName.toUpperCase();
+function handleNetworkData(data) {
+    // 1. HANDSHAKE (Intercambio de nombres)
+    if (data.type === 'HANDSHAKE') {
+        opponentName = data.content.name.toUpperCase();
+        
+        // Configurar UI común
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('game-container').classList.remove('blurred');
+        document.getElementById('rival-name').innerText = opponentName;
+        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+        document.getElementById('connection-status').innerText = "";
+        isMultiplayer = true;
+
+        if (isHost) {
+            // El HOST manda. Si recibo nombre, respondo con el mío e INICIO JUEGO.
+            conn.send({ type: 'HANDSHAKE_REPLY', content: { name: myPlayerName } });
             
-            // Actualizar UI Cliente
-            document.getElementById('main-menu').style.display = 'none';
-            document.getElementById('game-container').classList.remove('blurred');
-            document.getElementById('rival-name').innerText = opponentName;
-            document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-            document.getElementById('target-wins').disabled = true;
             document.getElementById('restart-btn').style.display = 'none';
+            document.getElementById('target-wins').disabled = false; 
             
-            isMultiplayer = true;
-            notify("Conectado. Esperando reparto de cartas...");
-            
-            // Paso 3: Decirle al Host que estamos listos
-            conn.send({ type: 'CLIENT_READY' });
-        }
+            notify("Rival conectado. Iniciando...");
+            playerWins = 0; aiWins = 0;
+            updateScoreboard();
+            setTimeout(() => initGame(), 500); // INICIO AUTOMÁTICO
+        } 
+    }
 
-        if (data.type === 'STATE_UPDATE') {
-            applyGameState(data.content);
-        }
-    });
-}
+    // 2. HANDSHAKE REPLY (Solo Cliente recibe esto del Host)
+    if (data.type === 'HANDSHAKE_REPLY') {
+        opponentName = data.content.name.toUpperCase();
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('game-container').classList.remove('blurred');
+        document.getElementById('rival-name').innerText = opponentName;
+        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+        
+        isMultiplayer = true;
+        document.getElementById('target-wins').disabled = true; 
+        document.getElementById('restart-btn').style.display = 'none';
+        notify("Conectado con el Host. Esperando cartas...");
+    }
 
-// --- GESTIÓN DE ESTADO ---
-function sendData(type, content) {
-    if (conn && conn.open) conn.send({ type: type, content: content });
-}
-
-function applyGameState(state) {
-    playerHand = state.p2Hand; 
-    aiHand = state.p1Hand;     
-    playerBody = state.p2Body; 
-    aiBody = state.p1Body;
-    deck = state.deck; 
-    discardPile = state.discard;
+    // 3. ACTUALIZACIÓN DE ESTADO (Cartas)
+    if (data.type === 'STATE_UPDATE') {
+        const state = data.content;
+        playerHand = state.p2Hand; aiHand = state.p1Hand;     
+        playerBody = state.p2Body; aiBody = state.p1Body;
+        deck = state.deck; discardPile = state.discard;
+        myTurn = state.turn === 'p2'; 
+        playerWins = state.wins.p2; aiWins = state.wins.p1;
+        
+        updateScoreboard();
+        render(); 
+        
+        if (myTurn) notify("¡Tu turno, " + myPlayerName + "!");
+        else notify("Turno de " + opponentName + "...");
+        
+        if (checkWinCondition(playerBody)) alert("¡GANASTE LA RONDA!");
+        if (checkWinCondition(aiBody)) alert(opponentName + " GANA LA RONDA");
+    }
     
-    // Determinar turno
-    myTurn = (state.turn === 'p2'); 
-    
-    playerWins = state.wins.p2;
-    aiWins = state.wins.p1;
-    
-    updateScoreboard();
-    render(); 
-    
-    if (myTurn) notify("¡Tu turno, " + myPlayerName + "!");
-    else notify("Turno de " + opponentName + "...");
-    
-    if (checkWinCondition(playerBody)) alert("¡GANASTE LA RONDA!");
-    if (checkWinCondition(aiBody)) alert(opponentName + " GANA LA RONDA");
-}
-
-function broadcastState() {
-    if (!isMultiplayer || !isHost) return;
-    const gameState = {
-        p1Hand: playerHand, p2Hand: aiHand, 
-        p1Body: playerBody, p2Body: aiBody,
-        deck: deck, discard: discardPile,
-        turn: myTurn ? 'p1' : 'p2',
-        wins: { p1: playerWins, p2: aiWins }
-    };
-    sendData('STATE_UPDATE', gameState);
+    // 4. MOVIMIENTO REMOTO
+    if (data.type === 'MOVE' && isHost) {
+        executeRemoteMove(data.content);
+    }
 }
 
 // --- JUEGO CORE ---
 function initGame() {
+    // REINICIO DE VARIABLES
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
     
+    // GENERAR CARTAS
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
         for(let i=0; i<4; i++) deck.push({color: c, type: 'virus'});
@@ -213,29 +194,42 @@ function initGame() {
 
     deck = deck.sort(() => Math.random() - 0.5);
     
+    // REPARTIR
     for(let i=0; i<3; i++) { 
         if(deck.length) playerHand.push(deck.pop()); 
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    // Configuración de turno inicial
+    // TURNO
     if (isHost || !isMultiplayer) myTurn = true; 
     else myTurn = false;
 
     updateScoreboard();
-    render(); // DIBUJAR INMEDIATAMENTE
     
-    if (isMultiplayer) {
-        if(isHost) { 
-            notify("Tu turno, " + myPlayerName); 
-            broadcastState(); // ENVIAR AHORA QUE ESTÁ LISTO
-        } 
-    } else { 
+    // RENDERIZAR (CRÍTICO: HACERLO SIEMPRE)
+    render(); 
+    
+    // SI ES MULTIJUGADOR Y SOY HOST, ENVÍO EL ESTADO
+    if (isMultiplayer && isHost) {
+        notify("Tu turno, " + myPlayerName); 
+        setTimeout(() => broadcastState(), 200); 
+    } else if (!isMultiplayer) {
         notify("¡A jugar! Derrota a " + opponentName); 
     }
 }
 
-// --- RESTO DE FUNCIONES (Score, Render, Moves) ---
+function broadcastState() {
+    if (!isMultiplayer || !isHost || !conn) return;
+    const gameState = {
+        p1Hand: playerHand, p2Hand: aiHand, 
+        p1Body: playerBody, p2Body: aiBody,
+        deck: deck, discard: discardPile,
+        turn: myTurn ? 'p1' : 'p2',
+        wins: { p1: playerWins, p2: aiWins }
+    };
+    conn.send({ type: 'STATE_UPDATE', content: gameState });
+}
+
 function updateScoreboard() {
     document.getElementById('p-score').innerText = playerWins;
     document.getElementById('a-score').innerText = aiWins;
@@ -267,6 +261,7 @@ function drawCard() {
     } return deck.pop();
 }
 
+// --- LOGICA JUEGO ---
 function playCard(index) {
     if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
@@ -294,7 +289,7 @@ function playCard(index) {
     }
 
     if (isMultiplayer && !isHost) {
-        if (conn) conn.send({ type: 'MOVE', content: { action: 'play', index: index, targetColor: selectedColor } });
+        if(conn) conn.send({ type: 'MOVE', content: { action: 'play', index: index, targetColor: selectedColor } });
         return; 
     }
 
@@ -423,7 +418,7 @@ function applyTreatment(name, isPlayer) {
 
 function quickDiscard(index) {
     if(isMultiplayer && !myTurn) return;
-    if(isMultiplayer && !isHost) { if (conn) conn.send({ type: 'MOVE', content: {action: 'discard', index: index} }); return; }
+    if(isMultiplayer && !isHost) { if(conn) conn.send({ type: 'MOVE', content: {action: 'discard', index: index} }); return; }
     
     discardPile.push(playerHand[index]);
     playerHand.splice(index, 1);
@@ -497,8 +492,7 @@ function confirmMultiDiscard() {
     let indices = Array.from(selectedForDiscard).sort((a, b) => b - a);
     
     if(isMultiplayer && !isHost) {
-        // En multi no complicamos con multi-discard remoto, hacemos uno a uno o simplificado
-        indices.forEach(i => sendData('MOVE', {action: 'discard', index: i}));
+        indices.forEach(i => { if(conn) conn.send({ type: 'MOVE', content: {action: 'discard', index: i} }); });
     } else {
         indices.forEach(i => { discardPile.push(playerHand[i]); playerHand.splice(i, 1); });
         while (playerHand.length < 3) { let c = drawCard(); if(c) playerHand.push(c); else break; }
