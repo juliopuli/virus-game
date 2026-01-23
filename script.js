@@ -11,7 +11,7 @@ let peer = null;
 let conn = null;
 let myTurn = true; 
 let lastActionLog = "Bienvenido";
-let roundStarter = 'p1'; // NUEVO: Controla quién empieza la ronda ('p1' o 'p2')
+let heartbeatInterval = null; // NUEVO: Para mantener la conexión viva
 
 // Identidad
 let myPlayerName = "Jugador";
@@ -30,22 +30,22 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
+// --- CONFIGURACIÓN DE RED MÁXIMA COMPATIBILIDAD ---
 const peerConfig = {
     config: {
         'iceServers': [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' }
+            { urls: 'stun:global.stun.twilio.com:3478' } // Twilio suele ser muy estable
         ]
-    }
+    },
+    debug: 1
 };
 
-// --- MENÚ Y ARRANQUE LOCAL ---
+// --- MENÚ Y ARRANQUE ---
 function startLocalGame() {
     isMultiplayer = false; isHost = true;
     if(peer) { peer.destroy(); peer = null; } conn = null;
+    if(heartbeatInterval) clearInterval(heartbeatInterval);
     
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
@@ -58,7 +58,6 @@ function startLocalGame() {
     document.getElementById('restart-btn').style.display = 'block';
     
     loadScores();
-    roundStarter = 'p1'; // En local empieza siempre el jugador la primera vez
     initGame(); 
 }
 
@@ -83,37 +82,57 @@ function createRoom() {
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
-    
     if(peer) peer.destroy();
+    
     peer = new Peer('virus_game_' + code, peerConfig);
     peer.on('open', (id) => { isHost = true; });
     peer.on('connection', (connection) => { conn = connection; setupConnection(); });
-    peer.on('error', (err) => alert("Error de red: " + err.type));
+    peer.on('error', (err) => alert("Error red: " + err.type));
 }
 
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value.toUpperCase();
     if (!code) return alert("Introduce un código");
-    
     isHost = false; 
     if(peer) peer.destroy();
     
     peer = new Peer(null, peerConfig);
-    peer.on('open', (id) => { 
-        conn = peer.connect('virus_game_' + code); 
-        if(!conn) { alert("No se pudo conectar."); return; }
+    peer.on('open', () => { 
+        conn = peer.connect('virus_game_' + code, {
+            reliable: true // Forzar fiabilidad
+        }); 
+        if(!conn) { alert("Error al intentar conectar."); return; }
         setupConnection(); 
     });
     peer.on('error', (err) => {
-        alert("Error al conectar: " + err.type);
+        alert("Error de conexión (" + err.type + "). Es posible que el firewall bloquee el juego.");
         location.reload();
     });
 }
 
 function setupConnection() {
-    conn.on('open', () => { sendData('HANDSHAKE', { name: myPlayerName }); });
+    // Limpiar intervalo anterior si existe
+    if(heartbeatInterval) clearInterval(heartbeatInterval);
+
+    conn.on('open', () => { 
+        // 1. Enviar saludo inicial
+        sendData('HANDSHAKE', { name: myPlayerName }); 
+        
+        // 2. INICIAR LATIDO (HEARTBEAT) para mantener la conexión viva
+        heartbeatInterval = setInterval(() => {
+            if(conn && conn.open) {
+                conn.send({ type: 'PING' });
+            }
+        }, 2000); // Ping cada 2 segundos
+    });
+
     conn.on('data', (data) => { handleNetworkData(data); });
-    conn.on('close', () => { alert("Desconectado"); location.reload(); });
+    
+    conn.on('close', () => { 
+        if(heartbeatInterval) clearInterval(heartbeatInterval);
+        alert("Se ha perdido la conexión."); 
+        location.reload(); 
+    });
 }
 
 function sendData(type, content) {
@@ -121,6 +140,9 @@ function sendData(type, content) {
 }
 
 function handleNetworkData(data) {
+    // Si es un PING, no hacemos nada (solo sirve para mantener el puerto abierto)
+    if (data.type === 'PING') return;
+
     if (data.type === 'HANDSHAKE') {
         opponentName = data.content.name.toUpperCase();
         document.getElementById('main-menu').style.display = 'none';
@@ -137,7 +159,6 @@ function handleNetworkData(data) {
             
             playerWins = 0; aiWins = 0;
             updateScoreboard();
-            roundStarter = 'p1'; // El host empieza el torneo
             setTimeout(() => initGame(), 500); 
         } 
     }
@@ -148,7 +169,6 @@ function handleNetworkData(data) {
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-        
         isMultiplayer = true;
         document.getElementById('target-wins').disabled = true; 
         document.getElementById('restart-btn').style.display = 'none';
@@ -201,7 +221,7 @@ function applyGameState(state) {
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
-    lastActionLog = "Nueva Ronda";
+    lastActionLog = "Partida comenzada";
     
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -218,26 +238,13 @@ function initGame() {
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    // --- LÓGICA DE QUIÉN EMPIEZA (ALTERNANCIA) ---
-    // Si roundStarter es 'p1', empieza el Host (o Local).
-    // Si roundStarter es 'p2', empieza el Rival (o Julio).
-    myTurn = (roundStarter === 'p1');
+    if (isHost || !isMultiplayer) myTurn = true; else myTurn = false;
 
     updateScoreboard();
     render(); 
     
-    // CASO MULTIJUGADOR
-    if (isMultiplayer && isHost) {
-        setTimeout(broadcastState, 300); 
-    } 
-    // CASO LOCAL (Si empieza Julio, dispara IA)
-    else if (!isMultiplayer) { 
-        if(myTurn) notify("¡A jugar! Tu turno.");
-        else {
-            notify("Turno de " + opponentName);
-            setTimeout(aiTurn, 1500); // Julio juega solo
-        }
-    }
+    if (isMultiplayer && isHost) { setTimeout(broadcastState, 300); } 
+    else if (!isMultiplayer) { notify("¡A jugar! vs " + opponentName); }
 }
 
 function broadcastState() {
@@ -246,7 +253,6 @@ function broadcastState() {
         p1Hand: playerHand, p2Hand: aiHand, 
         p1Body: playerBody, p2Body: aiBody,
         deck: deck, discard: discardPile,
-        // Si myTurn es true, es turno del Host (p1). Si false, es turno del Cliente (p2)
         turn: myTurn ? 'p1' : 'p2',
         wins: { p1: playerWins, p2: aiWins },
         lastLog: lastActionLog
@@ -268,7 +274,7 @@ function loadScores() {
     }
 }
 
-// --- VICTORIA Y RONDAS ---
+// --- VICTORIA ---
 function checkWin() {
     if (isMultiplayer && !isHost) return; 
     let roundWinner = null;
@@ -291,14 +297,10 @@ function handleRoundEnd(winner) {
     updateScoreboard();
 
     if (playerWins >= target) {
-        tournamentOver = true;
-        setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
+        tournamentOver = true; setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
     } else if (aiWins >= target) {
-        tournamentOver = true;
-        setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
+        tournamentOver = true; setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
     } else {
-        // --- CAMBIO DE SAQUE PARA LA SIGUIENTE RONDA ---
-        roundStarter = (roundStarter === 'p1') ? 'p2' : 'p1';
         setTimeout(() => initGame(), 500);
     }
 
@@ -313,7 +315,6 @@ function checkWinCondition(body) { return body.filter(o => !o.infected).length >
 
 function resetSeries() {
     playerWins = 0; aiWins = 0;
-    roundStarter = 'p1'; // Al resetear torneo, siempre empieza el P1
     if (!isMultiplayer) { localStorage.setItem('virus_playerWins', 0); localStorage.setItem('virus_aiWins', 0); }
     initGame();
 }
@@ -338,7 +339,7 @@ function drawCard() {
     } return deck.pop();
 }
 
-// --- LOGICA JUEGO ---
+// --- LOGICA DE JUEGO ---
 function playCard(index) {
     if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
@@ -452,11 +453,7 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
             broadcastState();
         } else {
             render();
-            if (!checkWinCondition(playerBody) && !checkWinCondition(aiBody)) {
-                // Si turno ahora es false (porque jugó el player), toca a la IA
-                if (!myTurn) setTimeout(aiTurn, 1000); 
-                // Si turno es true (porque jugó la IA), toca al player, no hacemos nada
-            }
+            if (!checkWinCondition(playerBody) && !checkWinCondition(aiBody)) setTimeout(aiTurn, 1000);
             else checkWin(); 
             return;
         }
@@ -549,13 +546,8 @@ function quickDiscard(index) {
     lastActionLog = (isHost ? myPlayerName : opponentName) + ": Descartó carta";
 
     if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
-    else { 
-        render(); 
-        // Si estaba en mi turno y descarto, pasa a ser turno de la IA
-        myTurn = false;
-        render();
-        setTimeout(aiTurn, 1000); 
-    }
+    else { render(); setTimeout(aiTurn, 1000); }
+    render();
 }
 
 function aiTurn() {
@@ -588,11 +580,7 @@ function aiTurn() {
         lastActionLog = "Julio: Pasó turno";
     }
     while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
-    
-    // Devuelve turno al jugador
-    myTurn = true;
-    render(); 
-    checkWin();
+    render(); checkWin();
 }
 
 function render() {
@@ -677,13 +665,7 @@ function confirmMultiDiscard() {
         lastActionLog = (isHost ? myPlayerName : opponentName) + " descartó " + indices.length;
 
         if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
-        else { 
-            render(); 
-            // Cambio de turno tras multidescarte local
-            myTurn = false;
-            render();
-            setTimeout(aiTurn, 1000); 
-        }
+        else { render(); setTimeout(aiTurn, 1000); }
     }
     
     multiDiscardMode = false; selectedForDiscard.clear(); render();
