@@ -7,11 +7,15 @@ let multiDiscardMode = false;
 // --- VARIABLES DE ESTADO ---
 let isMultiplayer = false;
 let isHost = false;
-let peer = null;
-let conn = null;
+// let peer = null; // YA NO USAMOS PEER
+let mqttClient = null; // NUEVO CLIENTE
+let myTopic = null;    // Donde yo escucho
+let rivalTopic = null; // Donde yo envío
+let currentRoomCode = null;
+
 let myTurn = true; 
 let lastActionLog = "Bienvenido";
-let heartbeatInterval = null; // NUEVO: Para mantener la conexión viva
+let roundStarter = 'p1';
 
 // Identidad
 let myPlayerName = "Jugador";
@@ -30,22 +34,10 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- CONFIGURACIÓN DE RED MÁXIMA COMPATIBILIDAD ---
-const peerConfig = {
-    config: {
-        'iceServers': [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:global.stun.twilio.com:3478' } // Twilio suele ser muy estable
-        ]
-    },
-    debug: 1
-};
-
-// --- MENÚ Y ARRANQUE ---
+// --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
     isMultiplayer = false; isHost = true;
-    if(peer) { peer.destroy(); peer = null; } conn = null;
-    if(heartbeatInterval) clearInterval(heartbeatInterval);
+    if(mqttClient) { mqttClient.end(); mqttClient = null; }
     
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
@@ -58,6 +50,7 @@ function startLocalGame() {
     document.getElementById('restart-btn').style.display = 'block';
     
     loadScores();
+    roundStarter = 'p1'; 
     initGame(); 
 }
 
@@ -75,81 +68,96 @@ function joinRoomUI() {
 
 function generateRoomCode() { return Math.random().toString(36).substring(2, 6).toUpperCase(); }
 
-// --- RED (PEERJS) ---
+// --- NUEVA LÓGICA DE RED (MQTT / WEBSOCKETS) ---
+// Usamos un broker público gratuito pero robusto (EMQX)
+const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt'; 
+
 function createRoom() {
     let btns = document.querySelectorAll('.mp-action-btn');
     btns.forEach(b => b.style.display = 'none');
+
     const code = generateRoomCode();
+    currentRoomCode = code;
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
-    if(peer) peer.destroy();
     
-    peer = new Peer('virus_game_' + code, peerConfig);
-    peer.on('open', (id) => { isHost = true; });
-    peer.on('connection', (connection) => { conn = connection; setupConnection(); });
-    peer.on('error', (err) => alert("Error red: " + err.type));
+    isHost = true;
+    setupMqttConnection();
 }
 
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value.toUpperCase();
     if (!code) return alert("Introduce un código");
-    isHost = false; 
-    if(peer) peer.destroy();
     
-    peer = new Peer(null, peerConfig);
-    peer.on('open', () => { 
-        conn = peer.connect('virus_game_' + code, {
-            reliable: true // Forzar fiabilidad
-        }); 
-        if(!conn) { alert("Error al intentar conectar."); return; }
-        setupConnection(); 
-    });
-    peer.on('error', (err) => {
-        alert("Error de conexión (" + err.type + "). Es posible que el firewall bloquee el juego.");
-        location.reload();
-    });
+    isHost = false; 
+    currentRoomCode = code;
+    setupMqttConnection();
 }
 
-function setupConnection() {
-    // Limpiar intervalo anterior si existe
-    if(heartbeatInterval) clearInterval(heartbeatInterval);
+function setupMqttConnection() {
+    if(mqttClient) mqttClient.end();
+    
+    // Conexión al servidor público
+    mqttClient = mqtt.connect(BROKER_URL);
 
-    conn.on('open', () => { 
-        // 1. Enviar saludo inicial
-        sendData('HANDSHAKE', { name: myPlayerName }); 
+    mqttClient.on('connect', () => {
+        console.log("Conectado al servidor MQTT");
         
-        // 2. INICIAR LATIDO (HEARTBEAT) para mantener la conexión viva
-        heartbeatInterval = setInterval(() => {
-            if(conn && conn.open) {
-                conn.send({ type: 'PING' });
+        // Definir buzones (Topics)
+        // Estructura: virusgame/CODIGO/host (Host escucha aquí)
+        // Estructura: virusgame/CODIGO/client (Cliente escucha aquí)
+        
+        if (isHost) {
+            myTopic = `virusgame/${currentRoomCode}/host`;
+            rivalTopic = `virusgame/${currentRoomCode}/client`;
+        } else {
+            myTopic = `virusgame/${currentRoomCode}/client`;
+            rivalTopic = `virusgame/${currentRoomCode}/host`;
+        }
+
+        // Suscribirse a mi buzón
+        mqttClient.subscribe(myTopic, (err) => {
+            if (!err) {
+                if (!isHost) {
+                    // Si soy cliente, al conectar envío saludo
+                    sendData('HANDSHAKE', { name: myPlayerName });
+                }
             }
-        }, 2000); // Ping cada 2 segundos
+        });
     });
 
-    conn.on('data', (data) => { handleNetworkData(data); });
+    mqttClient.on('message', (topic, message) => {
+        try {
+            const data = JSON.parse(message.toString());
+            handleNetworkData(data);
+        } catch (e) { console.error("Error mensaje", e); }
+    });
     
-    conn.on('close', () => { 
-        if(heartbeatInterval) clearInterval(heartbeatInterval);
-        alert("Se ha perdido la conexión."); 
-        location.reload(); 
+    mqttClient.on('error', (err) => {
+        console.error(err);
+        alert("Error de conexión (MQTT). Revisa internet.");
     });
 }
 
 function sendData(type, content) {
-    if (conn && conn.open) { try { conn.send({ type: type, content: content }); } catch(e){} }
+    if (mqttClient && mqttClient.connected) {
+        const payload = JSON.stringify({ type: type, content: content });
+        mqttClient.publish(rivalTopic, payload);
+    }
 }
 
+// --- GESTIÓN DE DATOS ---
 function handleNetworkData(data) {
-    // Si es un PING, no hacemos nada (solo sirve para mantener el puerto abierto)
-    if (data.type === 'PING') return;
-
     if (data.type === 'HANDSHAKE') {
         opponentName = data.content.name.toUpperCase();
+        
+        // UI
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
         document.getElementById('connection-status').innerText = "";
+        
         isMultiplayer = true;
 
         if (isHost) {
@@ -159,6 +167,9 @@ function handleNetworkData(data) {
             
             playerWins = 0; aiWins = 0;
             updateScoreboard();
+            roundStarter = 'p1';
+            
+            notify("Rival conectado. Iniciando...");
             setTimeout(() => initGame(), 500); 
         } 
     }
@@ -169,6 +180,7 @@ function handleNetworkData(data) {
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+        
         isMultiplayer = true;
         document.getElementById('target-wins').disabled = true; 
         document.getElementById('restart-btn').style.display = 'none';
@@ -221,7 +233,7 @@ function applyGameState(state) {
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
-    lastActionLog = "Partida comenzada";
+    lastActionLog = "Nueva Ronda";
     
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -238,13 +250,21 @@ function initGame() {
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    if (isHost || !isMultiplayer) myTurn = true; else myTurn = false;
+    myTurn = (roundStarter === 'p1');
 
     updateScoreboard();
     render(); 
     
-    if (isMultiplayer && isHost) { setTimeout(broadcastState, 300); } 
-    else if (!isMultiplayer) { notify("¡A jugar! vs " + opponentName); }
+    if (isMultiplayer && isHost) {
+        setTimeout(broadcastState, 300); 
+    } 
+    else if (!isMultiplayer) { 
+        if(myTurn) notify("¡A jugar! Tu turno.");
+        else {
+            notify("Turno de " + opponentName);
+            setTimeout(aiTurn, 1500); 
+        }
+    }
 }
 
 function broadcastState() {
@@ -274,7 +294,6 @@ function loadScores() {
     }
 }
 
-// --- VICTORIA ---
 function checkWin() {
     if (isMultiplayer && !isHost) return; 
     let roundWinner = null;
@@ -297,10 +316,13 @@ function handleRoundEnd(winner) {
     updateScoreboard();
 
     if (playerWins >= target) {
-        tournamentOver = true; setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
+        tournamentOver = true;
+        setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
     } else if (aiWins >= target) {
-        tournamentOver = true; setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
+        tournamentOver = true;
+        setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
     } else {
+        roundStarter = (roundStarter === 'p1') ? 'p2' : 'p1';
         setTimeout(() => initGame(), 500);
     }
 
@@ -315,6 +337,7 @@ function checkWinCondition(body) { return body.filter(o => !o.infected).length >
 
 function resetSeries() {
     playerWins = 0; aiWins = 0;
+    roundStarter = 'p1';
     if (!isMultiplayer) { localStorage.setItem('virus_playerWins', 0); localStorage.setItem('virus_aiWins', 0); }
     initGame();
 }
@@ -339,7 +362,7 @@ function drawCard() {
     } return deck.pop();
 }
 
-// --- LOGICA DE JUEGO ---
+// --- LOGICA JUEGO ---
 function playCard(index) {
     if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
@@ -453,7 +476,9 @@ function executeMove(index, isPlayerMove, forcedTargetColor = null) {
             broadcastState();
         } else {
             render();
-            if (!checkWinCondition(playerBody) && !checkWinCondition(aiBody)) setTimeout(aiTurn, 1000);
+            if (!checkWinCondition(playerBody) && !checkWinCondition(aiBody)) {
+                if (!myTurn) setTimeout(aiTurn, 1000); 
+            }
             else checkWin(); 
             return;
         }
@@ -546,8 +571,12 @@ function quickDiscard(index) {
     lastActionLog = (isHost ? myPlayerName : opponentName) + ": Descartó carta";
 
     if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
-    else { render(); setTimeout(aiTurn, 1000); }
-    render();
+    else { 
+        render(); 
+        myTurn = false;
+        render();
+        setTimeout(aiTurn, 1000); 
+    }
 }
 
 function aiTurn() {
@@ -580,7 +609,9 @@ function aiTurn() {
         lastActionLog = "Julio: Pasó turno";
     }
     while (aiHand.length < 3) { let c = drawCard(); if(c) aiHand.push(c); }
-    render(); checkWin();
+    myTurn = true;
+    render(); 
+    checkWin();
 }
 
 function render() {
@@ -665,8 +696,12 @@ function confirmMultiDiscard() {
         lastActionLog = (isHost ? myPlayerName : opponentName) + " descartó " + indices.length;
 
         if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
-        else { render(); setTimeout(aiTurn, 1000); }
+        else { 
+            render(); 
+            myTurn = false;
+            render();
+            setTimeout(aiTurn, 1000); 
+        }
     }
-    
     multiDiscardMode = false; selectedForDiscard.clear(); render();
 }
