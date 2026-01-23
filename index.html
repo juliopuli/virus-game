@@ -3,55 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/FortAwesome/Font-Awesome/6.x/svgs/solid/virus.svg">
-
-    <title>Virus! Tournament</title>
+    <title>Virus! Multiplayer</title>
     <link rel="stylesheet" href="style.css">
+    
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
-    <div id="game-container">
-        
+    
+    <div id="main-menu">
+        <div class="menu-box">
+            <h1>VIRUS!</h1>
+            <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Julio)</button>
+            <div class="divider"></div>
+            <button onclick="showMultiplayerOptions()" class="menu-btn">👤 vs 👤 (Online)</button>
+            
+            <div id="mp-options" style="display:none; margin-top:15px;">
+                <button onclick="createRoom()" class="mp-action-btn host">Crear Partida</button>
+                <button onclick="joinRoomUI()" class="mp-action-btn join">Unirse</button>
+                <div id="room-code-display" style="display:none;">
+                    <p>Tu código es:</p>
+                    <h2 id="my-code">...</h2>
+                    <p class="waiting">Esperando rival...</p>
+                </div>
+                <div id="join-input-area" style="display:none;">
+                    <input type="text" id="remote-code-input" placeholder="Introduce código del host">
+                    <button onclick="connectToPeer()" class="confirm-btn">Conectar</button>
+                </div>
+            </div>
+            <p id="connection-status"></p>
+        </div>
+    </div>
+
+    <div id="game-container" class="blurred">
         <div id="scoreboard-area">
             <div class="score-controls">
                 <span>Meta:</span>
                 <select id="target-wins" onchange="resetSeries()">
                     <option value="3">3</option>
-                    <option value="4">4</option>
                     <option value="5" selected>5</option>
-                    <option value="6">6</option>
-                    <option value="7">7</option>
-                    <option value="8">8</option>
-                    <option value="9">9</option>
                     <option value="10">10</option>
                 </select>
             </div>
             <div class="scores-display">
                 <div class="score-box player">TÚ: <span id="p-score">0</span></div>
-                <div class="score-box ai">JULIO: <span id="a-score">0</span></div>
+                <div class="score-box ai"><span id="rival-name">JULIO</span>: <span id="a-score">0</span></div>
             </div>
         </div>
 
-        <div id="notification-bar">Cargando...</div>
+        <div id="notification-bar">Esperando inicio...</div>
         
         <div class="board-section">
-            <h3>🤖 La salud de Julio</h3>
+            <h3 id="rival-area-title">🤖 La salud de Julio</h3>
             <div id="ai-body" class="body-slots"></div>
         </div>
 
         <div id="deck-area">
             <div id="dynamic-controls"></div>
-            
             <div class="deck-info">
                 <div class="card deck-visual">
                     <span id="deck-count">0</span>
                     <small>MAZO</small>
                 </div>
             </div>
-
-            <button onclick="confirmRestartSeries()" id="restart-btn">🔄 Reiniciar Torneo</button>
+            <button onclick="confirmRestartSeries()" id="restart-btn">🔄 Reiniciar</button>
         </div>
 
         <div class="board-section">
@@ -63,11 +80,6 @@
     </div>
     
     <div class="powered-by-fixed">powered by @aljupa</div>
-
-    <div class="version-display">Ver.2601222155</div>
-
-    <script src="script.js"></script>
+    <div class="version-display">Ver.2601231600</div> <script src="script.js"></script>
 </body>
 </html>
-
-
