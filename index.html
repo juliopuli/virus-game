@@ -8,7 +8,6 @@
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/FortAwesome/Font-Awesome/6.x/svgs/solid/virus.svg">
     <title>Virus! Multiplayer</title>
     <link rel="stylesheet" href="style.css">
-    
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -16,6 +15,9 @@
     <div id="main-menu">
         <div class="menu-box">
             <h1>VIRUS!</h1>
+            
+            <input type="text" id="username" placeholder="Tu Nombre (ej: Pablo)" class="name-input" maxlength="10">
+            
             <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Julio)</button>
             <div class="divider"></div>
             <button onclick="showMultiplayerOptions()" class="menu-btn">👤 vs 👤 (Online)</button>
@@ -23,11 +25,13 @@
             <div id="mp-options" style="display:none; margin-top:15px;">
                 <button onclick="createRoom()" class="mp-action-btn host">Crear Partida</button>
                 <button onclick="joinRoomUI()" class="mp-action-btn join">Unirse</button>
+                
                 <div id="room-code-display" style="display:none;">
                     <p>Tu código es:</p>
                     <h2 id="my-code">...</h2>
                     <p class="waiting">Esperando rival...</p>
                 </div>
+                
                 <div id="join-input-area" style="display:none;">
                     <input type="text" id="remote-code-input" placeholder="Introduce código del host">
                     <button onclick="connectToPeer()" class="confirm-btn">Conectar</button>
@@ -80,6 +84,6 @@
     </div>
     
     <div class="powered-by-fixed">powered by @aljupa</div>
-    <div class="version-display">Ver.2601231600</div> <script src="script.js"></script>
+    <div class="version-display">Ver.2601231615</div> <script src="script.js"></script>
 </body>
 </html>
