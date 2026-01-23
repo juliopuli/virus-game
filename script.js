@@ -29,21 +29,27 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-const peerConfig = { config: { 'iceServers': [ { urls: 'stun:stun.l.google.com:19302' } ] } };
+// --- CONFIGURACIÓN DE RED MEJORADA (MÁS SERVIDORES STUN) ---
+const peerConfig = {
+    config: {
+        'iceServers': [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' }
+        ]
+    }
+};
 
 // --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
-    // 1. Limpieza TOTAL de red
-    isMultiplayer = false;
-    isHost = true; // En local siempre eres Host
-    if(peer) { peer.destroy(); peer = null; }
-    conn = null;
+    isMultiplayer = false; isHost = true;
+    if(peer) { peer.destroy(); peer = null; } conn = null;
     
-    // 2. Configuración Jugador
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
     
-    // 3. UI Local
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
@@ -51,7 +57,6 @@ function startLocalGame() {
     document.getElementById('target-wins').disabled = false;
     document.getElementById('restart-btn').style.display = 'block';
     
-    // 4. Iniciar INMEDIATAMENTE
     loadScores();
     initGame(); 
 }
@@ -74,110 +79,91 @@ function generateRoomCode() { return Math.random().toString(36).substring(2, 6).
 function createRoom() {
     let btns = document.querySelectorAll('.mp-action-btn');
     btns.forEach(b => b.style.display = 'none');
-
     const code = generateRoomCode();
     document.getElementById('my-code').innerText = code;
     document.getElementById('room-code-display').style.display = 'block';
     
     if(peer) peer.destroy();
     peer = new Peer('virus_game_' + code, peerConfig);
-    
     peer.on('open', (id) => { isHost = true; });
-    peer.on('connection', (connection) => { 
-        conn = connection; 
-        setupConnection(); 
-    });
+    peer.on('connection', (connection) => { conn = connection; setupConnection(); });
     peer.on('error', (err) => alert("Error de red: " + err.type));
 }
 
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value.toUpperCase();
     if (!code) return alert("Introduce un código");
-    
     isHost = false; 
     if(peer) peer.destroy();
     
     peer = new Peer(null, peerConfig);
-    
     peer.on('open', (id) => { 
         conn = peer.connect('virus_game_' + code); 
-        if(!conn) { alert("No se pudo conectar. Revisa el código."); return; }
+        if(!conn) { alert("No se pudo conectar."); return; }
         setupConnection(); 
     });
-    
     peer.on('error', (err) => {
-        alert("Error al conectar: " + err.type);
+        alert("Error de conexión (" + err.type + "). Intenta usar WiFi.");
         location.reload();
     });
 }
 
 function setupConnection() {
-    conn.on('open', () => { 
-        // Nada más conectar, mandamos nuestro nombre
-        sendData('HANDSHAKE', { name: myPlayerName }); 
-    });
+    conn.on('open', () => { sendData('HANDSHAKE', { name: myPlayerName }); });
     conn.on('data', (data) => { handleNetworkData(data); });
-    conn.on('close', () => { 
-        alert("Conexión perdida con el rival."); 
-        location.reload(); 
-    });
+    conn.on('close', () => { alert("Desconectado"); location.reload(); });
 }
 
 function sendData(type, content) {
-    if (conn && conn.open) { 
-        try { conn.send({ type: type, content: content }); } 
-        catch(e) { console.error(e); }
-    }
+    if (conn && conn.open) { try { conn.send({ type: type, content: content }); } catch(e){} }
 }
 
 function handleNetworkData(data) {
-    // 1. HANDSHAKE: Al recibir nombre, actualizamos UI y arrancamos si somos Host
     if (data.type === 'HANDSHAKE') {
         opponentName = data.content.name.toUpperCase();
-        
-        // UI Común
         document.getElementById('main-menu').style.display = 'none';
         document.getElementById('game-container').classList.remove('blurred');
         document.getElementById('rival-name').innerText = opponentName;
         document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
         document.getElementById('connection-status').innerText = "";
-        
         isMultiplayer = true;
-
         if (isHost) {
-            // HOST: Inicia el juego y envía cartas
+            sendData('HANDSHAKE_REPLY', { name: myPlayerName });
             document.getElementById('restart-btn').style.display = 'none';
             document.getElementById('target-wins').disabled = false; 
-            
             playerWins = 0; aiWins = 0;
             updateScoreboard();
-            
-            // Responder con mi nombre para que el cliente sepa quién soy
-            sendData('HANDSHAKE_INFO', { name: myPlayerName });
-            
-            // INICIO DEL JUEGO
             setTimeout(() => initGame(), 500); 
-        } else {
-            // CLIENTE: Se queda esperando el estado
-            document.getElementById('target-wins').disabled = true; 
-            document.getElementById('restart-btn').style.display = 'none';
-            notify("Conectado. Esperando al Host...");
+        } 
+    }
+
+    if (data.type === 'HANDSHAKE_REPLY') {
+        opponentName = data.content.name.toUpperCase();
+        document.getElementById('main-menu').style.display = 'none';
+        document.getElementById('game-container').classList.remove('blurred');
+        document.getElementById('rival-name').innerText = opponentName;
+        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
+        isMultiplayer = true;
+        document.getElementById('target-wins').disabled = true; 
+        document.getElementById('restart-btn').style.display = 'none';
+        notify("Conectado. Esperando...");
+    }
+
+    if (data.type === 'STATE_UPDATE') { applyGameState(data.content); }
+    
+    if (data.type === 'ROUND_OVER') {
+        const info = data.content;
+        if (info.winner === 'client') alert("¡GANASTE LA RONDA!");
+        else alert("¡" + opponentName + " GANA LA RONDA!");
+        
+        if (info.tournamentOver) {
+            setTimeout(() => {
+                if (info.winner === 'client') alert("🏆 ¡CAMPEÓN DEL TORNEO!");
+                else alert("💀 " + opponentName + " GANA EL TORNEO");
+            }, 500);
         }
     }
     
-    // Solo para el cliente: Recibir nombre del Host
-    if (data.type === 'HANDSHAKE_INFO') {
-        opponentName = data.content.name.toUpperCase();
-        document.getElementById('rival-name').innerText = opponentName;
-        document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
-    }
-
-    // 2. RECIBIR ESTADO DE JUEGO (Cartas y Tablero)
-    if (data.type === 'STATE_UPDATE') {
-        applyGameState(data.content);
-    }
-    
-    // 3. RECIBIR JUGADA (Host ejecuta lo que pide el Cliente)
     if (data.type === 'MOVE' && isHost) {
         if (data.content.action === 'multi_discard') {
             let indices = data.content.indices.sort((a,b)=>b-a);
@@ -191,43 +177,22 @@ function handleNetworkData(data) {
             executeRemoteMove(data.content);
         }
     }
-    
-    // 4. FIN DE RONDA/TORNEO
-    if (data.type === 'ROUND_OVER') {
-        const info = data.content;
-        if (info.winner === 'client') alert("¡GANASTE LA RONDA!");
-        else alert("¡" + opponentName + " GANA LA RONDA!");
-        
-        if (info.tournamentOver) {
-            setTimeout(() => {
-                if (info.winner === 'client') alert("🏆 ¡CAMPEÓN DEL TORNEO!");
-                else alert("💀 " + opponentName + " GANA EL TORNEO");
-            }, 500);
-        }
-    }
 }
 
 function applyGameState(state) {
-    // Sobrescribir estado local con el del servidor
-    playerHand = state.p2Hand || []; 
-    aiHand = state.p1Hand || [];     
-    playerBody = state.p2Body || []; 
-    aiBody = state.p1Body || [];
-    deck = state.deck || []; 
-    discardPile = state.discard || [];
-    
+    playerHand = state.p2Hand || []; aiHand = state.p1Hand || [];     
+    playerBody = state.p2Body || []; aiBody = state.p1Body || [];
+    deck = state.deck || []; discardPile = state.discard || [];
     myTurn = (state.turn === 'p2'); 
-    playerWins = state.wins.p2;
-    aiWins = state.wins.p1;
+    playerWins = state.wins.p2; aiWins = state.wins.p1;
     lastActionLog = state.lastLog || "";
     
     updateScoreboard();
-    render(); // ESTO DIBUJA LAS CARTAS
+    render(); 
 }
 
 // --- JUEGO CORE ---
 function initGame() {
-    // 1. Generar Mazo
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
     lastActionLog = "Partida comenzada";
@@ -242,27 +207,18 @@ function initGame() {
 
     deck = deck.sort(() => Math.random() - 0.5);
     
-    // 2. Repartir
     for(let i=0; i<3; i++) { 
         if(deck.length) playerHand.push(deck.pop()); 
         if(deck.length) aiHand.push(deck.pop()); 
     }
     
-    // 3. Turno
-    if (isHost || !isMultiplayer) myTurn = true; 
-    else myTurn = false;
+    if (isHost || !isMultiplayer) myTurn = true; else myTurn = false;
 
     updateScoreboard();
-    
-    // 4. RENDERIZAR (CRÍTICO)
     render(); 
     
-    // 5. Enviar estado si es Online
-    if (isMultiplayer && isHost) {
-        setTimeout(broadcastState, 300); 
-    } else if (!isMultiplayer) { 
-        notify("Tu turno"); 
-    }
+    if (isMultiplayer && isHost) { setTimeout(broadcastState, 300); } 
+    else if (!isMultiplayer) { notify("¡A jugar! vs " + opponentName); }
 }
 
 function broadcastState() {
@@ -292,56 +248,40 @@ function loadScores() {
     }
 }
 
-// --- VICTORIA Y RONDAS ---
+// --- VICTORIA ---
 function checkWin() {
-    // Si soy cliente online, yo no decido, decide el Host
     if (isMultiplayer && !isHost) return; 
-
     let roundWinner = null;
     if (checkWinCondition(playerBody)) roundWinner = 'player';
     else if (checkWinCondition(aiBody)) roundWinner = 'ai';
-
-    if (roundWinner) {
-        handleRoundEnd(roundWinner);
-    }
+    if (roundWinner) handleRoundEnd(roundWinner);
 }
 
 function handleRoundEnd(winner) {
     const target = parseInt(document.getElementById('target-wins').value) || 5;
     let tournamentOver = false;
 
-    if (winner === 'player') {
-        playerWins++;
-        alert("¡GANASTE LA RONDA!");
-    } else {
-        aiWins++;
-        alert("¡" + opponentName + " GANA LA RONDA!");
-    }
+    if (winner === 'player') { playerWins++; alert("¡GANASTE LA RONDA!"); } 
+    else { aiWins++; alert("¡" + opponentName + " GANA LA RONDA!"); }
 
     if (!isMultiplayer) {
         localStorage.setItem('virus_playerWins', playerWins);
         localStorage.setItem('virus_aiWins', aiWins);
     }
-
     updateScoreboard();
 
-    // Chequear Torneo
     if (playerWins >= target) {
-        tournamentOver = true;
-        setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
+        tournamentOver = true; setTimeout(() => { alert("🏆 ¡CAMPEÓN DEL TORNEO!"); resetSeries(); }, 500);
     } else if (aiWins >= target) {
-        tournamentOver = true;
-        setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
+        tournamentOver = true; setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
     } else {
-        // Nueva ronda
         setTimeout(() => initGame(), 500);
     }
 
-    // SI ES ONLINE HOST, AVISAR AL CLIENTE
     if (isMultiplayer && isHost) {
-        let clientResult = (winner === 'ai') ? 'client' : 'host'; // Si gana AI (p2), gana Cliente
+        let clientResult = (winner === 'ai') ? 'client' : 'host';
         sendData('ROUND_OVER', { winner: clientResult, tournamentOver: tournamentOver });
-        broadcastState(); // Para actualizar marcador remoto
+        broadcastState();
     }
 }
 
@@ -358,18 +298,13 @@ function confirmRestartSeries() {
     setTimeout(() => { if(confirm("¿Reiniciar torneo?")) resetSeries(); }, 50);
 }
 
-// --- NOTIFICACIONES ---
 function notify(msg) { 
     const el = document.getElementById('notification-bar');
     if(!el) return;
-    
-    // Si estamos jugando, mostramos Turno + Última Acción
     if (deck.length > 0) {
         let turnMsg = myTurn ? `Tu Turno (${myPlayerName})` : `Turno de ${opponentName}`;
         el.innerHTML = `<span>${turnMsg}</span> <span style="opacity:0.6">|</span> <span style="font-weight:400; font-style:italic; font-size: 0.8rem">${lastActionLog}</span>`;
-    } else {
-        el.innerText = msg; // Mensajes de sistema (Esperando...)
-    }
+    } else { el.innerText = msg; }
 }
 
 function drawCard() {
@@ -378,18 +313,14 @@ function drawCard() {
     } return deck.pop();
 }
 
-// --- LOGICA JUEGO (INTERACCIONES) ---
+// --- LOGICA DE JUEGO ---
 function playCard(index) {
-    if (isMultiplayer && !myTurn) { alert("⛔ Es el turno de " + opponentName); return; }
+    if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
 
     const card = playerHand[index];
     let selectedColor = null;
 
-    // LÓGICA DE PREGUNTAS (LOCAL O HOST)
-    // El cliente solo manda la intención, el host pregunta si hace falta o usa la del cliente
-    // Pero para UX, preguntamos en el cliente antes de enviar
-    
     if (card.type === 'medicine') {
         let candidates = playerBody.filter(o => (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2));
         if (candidates.length > 1) {
@@ -420,13 +351,10 @@ function playCard(index) {
         }
     }
 
-    // SI ES CLIENTE, ENVIAR
     if (isMultiplayer && !isHost) {
         sendData('MOVE', { action: 'play', index: index, targetColor: selectedColor });
         return; 
     }
-
-    // SI ES LOCAL/HOST, EJECUTAR
     executeMove(index, true, selectedColor);
 }
 
@@ -631,7 +559,7 @@ function aiTurn() {
 
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
-    notify(""); // Actualizar barra de estado
+    notify(""); 
 
     const playerSection = document.querySelector('.board-section:last-of-type'); 
     const rivalSection = document.querySelector('.board-section:first-of-type'); 
@@ -713,6 +641,5 @@ function confirmMultiDiscard() {
         if(isMultiplayer) { myTurn = !myTurn; broadcastState(); }
         else { render(); setTimeout(aiTurn, 1000); }
     }
-    
     multiDiscardMode = false; selectedForDiscard.clear(); render();
 }
