@@ -39,27 +39,27 @@ const icons = {
 
 // --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
+    // 1. Limpieza TOTAL de red
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
     isMultiplayer = false; isHost = true;
     
+    // 2. Configurar Juego
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
     lastActionLog = "Partida Local";
 
-    // UI
+    // 3. Preparar UI
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
     document.getElementById('rival-area-title').innerText = "🤖 La salud de " + opponentName;
     document.getElementById('target-wins').disabled = false;
     document.getElementById('restart-btn').style.display = 'block';
-    
-    // Ocultar chat en local (o podrías dejarlo para notas)
     document.getElementById('chat-btn').style.display = 'none';
 
     loadScores();
-    roundStarter = 'p1';
-    initGame(); 
+    roundStarter = 'p1'; 
+    initGame(); // ¡ARRANQUE INMEDIATO!
 }
 
 function showMultiplayerOptions() {
@@ -78,7 +78,7 @@ function generateRoomCode() {
     return Math.floor(100000 + Math.random() * 900000).toString(); 
 }
 
-// --- RED (MQTT) ---
+// --- RED (MQTT - Funciona en 4G) ---
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
 
 function createRoom() {
@@ -104,10 +104,9 @@ function connectMqtt() {
     notify("Conectando al servidor...");
     if(mqttClient) mqttClient.end();
     
-    mqttClient = mqtt.connect(BROKER_URL, {
-        clean: true, connectTimeout: 4000,
-        clientId: 'virus_' + Math.random().toString(16).substr(2, 8)
-    });
+    // ID aleatorio para evitar conflictos
+    const clientId = 'virus_' + Math.random().toString(16).substr(2, 8);
+    mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
         if (isHost) {
@@ -118,6 +117,7 @@ function connectMqtt() {
             rivalTopic = `virusgame/${currentRoomCode}/host`;
         }
 
+        // Suscribirse
         mqttClient.subscribe(myTopic, { qos: 1 }, (err) => {
             if (!err) {
                 if (isHost) notify("Sala creada. Esperando rival...");
@@ -147,12 +147,12 @@ function sendData(type, content) {
 }
 
 function handleNetworkData(data) {
-    // 1. CHAT
+    // CHAT
     if (data.type === 'CHAT') {
         addChatMessage(data.content.name, data.content.msg);
     }
 
-    // 2. CONEXIÓN
+    // HANDSHAKE
     if (data.type === 'HANDSHAKE' && isHost) {
         opponentName = data.content.name.toUpperCase();
         setupUiMultiplayer();
@@ -170,7 +170,7 @@ function handleNetworkData(data) {
         notify("Conectado. Esperando reparto...");
     }
 
-    // 3. JUEGO
+    // JUEGO
     if (data.type === 'STATE_UPDATE') applyGameState(data.content);
     
     if (data.type === 'MOVE' && isHost) {
@@ -207,7 +207,7 @@ function setupUiMultiplayer() {
     document.getElementById('rival-name').innerText = opponentName;
     document.getElementById('rival-area-title').innerText = "👤 Salud de " + opponentName;
     document.getElementById('connection-status').innerText = "";
-    document.getElementById('chat-btn').style.display = 'flex'; // Mostrar chat
+    document.getElementById('chat-btn').style.display = 'flex';
     
     if(!isHost) {
         document.getElementById('target-wins').disabled = true;
@@ -218,12 +218,11 @@ function setupUiMultiplayer() {
     }
 }
 
-// --- FUNCIONES DE CHAT ---
+// --- CHAT ---
 function toggleChat() {
     const modal = document.getElementById('chat-modal');
     isChatOpen = !isChatOpen;
     modal.style.display = isChatOpen ? 'flex' : 'none';
-    
     if(isChatOpen) {
         document.getElementById('chat-badge').style.display = 'none';
         renderChat();
@@ -234,22 +233,15 @@ function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if (!msg) return;
-    
-    // Añadir localmente
     addChatMessage(myPlayerName, msg);
-    // Enviar a rival
     sendData('CHAT', { name: myPlayerName, msg: msg });
-    
     input.value = '';
 }
 
 function addChatMessage(name, msg) {
     chatMessages.push({ name: name, msg: msg });
-    if(chatMessages.length > 5) chatMessages.shift(); // Solo últimos 5
-    
+    if(chatMessages.length > 5) chatMessages.shift();
     renderChat();
-    
-    // Si el chat está cerrado y el mensaje no es mío, mostrar alerta
     if(!isChatOpen && name !== myPlayerName) {
         document.getElementById('chat-badge').style.display = 'block';
     }
@@ -258,12 +250,10 @@ function addChatMessage(name, msg) {
 function renderChat() {
     const container = document.getElementById('chat-history');
     container.innerHTML = '';
-    
     if(chatMessages.length === 0) {
         container.innerHTML = '<p style="color:#aaa; font-style:italic;">No hay mensajes...</p>';
         return;
     }
-    
     chatMessages.forEach(m => {
         const p = document.createElement('p');
         p.className = (m.name === myPlayerName) ? 'chat-msg me' : 'chat-msg';
@@ -273,12 +263,12 @@ function renderChat() {
     container.scrollTop = container.scrollHeight;
 }
 
-// --- JUEGO CORE (Sin cambios lógicos) ---
+// --- JUEGO CORE ---
 function initGame() {
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
     lastActionLog = "Partida comenzada";
-    chatMessages = []; // Limpiar chat en nueva partida si quieres, o dejarlo
+    chatMessages = [];
     
     colors.forEach(c => {
         for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -332,10 +322,8 @@ function broadcastState() {
 }
 
 function updateScoreboard() {
-    const pScore = document.getElementById('p-score');
-    const aScore = document.getElementById('a-score');
-    if(pScore) pScore.innerText = playerWins;
-    if(aScore) aScore.innerText = aiWins;
+    document.getElementById('p-score').innerText = playerWins;
+    document.getElementById('a-score').innerText = aiWins;
 }
 
 function loadScores() {
@@ -411,7 +399,7 @@ function drawCard() {
     } return deck.pop();
 }
 
-// --- LOGICA JUEGO (Igual) ---
+// --- LOGICA DE JUEGO (Restaurada y Completa) ---
 function playCard(index) {
     if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
@@ -752,5 +740,6 @@ function confirmMultiDiscard() {
             setTimeout(aiTurn, 1000); 
         }
     }
+    
     multiDiscardMode = false; selectedForDiscard.clear(); render();
 }
