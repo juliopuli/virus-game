@@ -8,7 +8,6 @@
     <link rel="apple-touch-icon" href="https://raw.githubusercontent.com/FortAwesome/Font-Awesome/6.x/svgs/solid/virus.svg">
     <title>Virus! Multiplayer</title>
     <link rel="stylesheet" href="style.css">
-    
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 </head>
 <body>
@@ -38,6 +37,26 @@
                 </div>
             </div>
             <p id="connection-status"></p>
+        </div>
+    </div>
+
+    <button id="chat-btn" onclick="toggleChat()" style="display:none;">
+        💬 <span id="chat-badge" style="display:none;">●</span>
+    </button>
+
+    <div id="chat-modal" style="display:none;">
+        <div class="chat-content">
+            <div class="chat-header">
+                <h3>Chat de Partida</h3>
+                <button class="close-chat" onclick="toggleChat()">✖</button>
+            </div>
+            <div id="chat-history">
+                <p style="color:#aaa; font-style:italic;">No hay mensajes...</p>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" placeholder="Escribe algo..." maxlength="30">
+                <button onclick="sendChatMessage()">➤</button>
+            </div>
         </div>
     </div>
 
@@ -84,9 +103,8 @@
     </div>
     
     <div class="powered-by-fixed">powered by @aljupa</div>
-    <div class="version-display">Ver.2601231959</div>
+    <div class="version-display">Ver.2601232200</div>
 
     <script src="script.js"></script>
 </body>
 </html>
-
