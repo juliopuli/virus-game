@@ -15,6 +15,7 @@ let currentRoomCode = null;
 let myTurn = true; 
 let lastActionLog = "Bienvenido";
 let roundStarter = 'p1';
+let isRoundProcessing = false; // NUEVO: Cerrojo para evitar puntos dobles
 
 // Chat
 let chatMessages = [];
@@ -39,16 +40,13 @@ const icons = {
 
 // --- MENÚ Y ARRANQUE LOCAL ---
 function startLocalGame() {
-    // 1. Limpieza TOTAL de red
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
     isMultiplayer = false; isHost = true;
     
-    // 2. Configurar Juego
     opponentName = "JULIO"; 
     myPlayerName = document.getElementById('username').value || "Jugador"; 
     lastActionLog = "Partida Local";
 
-    // 3. Preparar UI
     document.getElementById('main-menu').style.display = 'none';
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('rival-name').innerText = opponentName;
@@ -58,8 +56,9 @@ function startLocalGame() {
     document.getElementById('chat-btn').style.display = 'none';
 
     loadScores();
-    roundStarter = 'p1'; 
-    initGame(); // ¡ARRANQUE INMEDIATO!
+    roundStarter = 'p1';
+    isRoundProcessing = false; 
+    initGame(); 
 }
 
 function showMultiplayerOptions() {
@@ -78,7 +77,7 @@ function generateRoomCode() {
     return Math.floor(100000 + Math.random() * 900000).toString(); 
 }
 
-// --- RED (MQTT - Funciona en 4G) ---
+// --- RED (MQTT) ---
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
 
 function createRoom() {
@@ -104,7 +103,6 @@ function connectMqtt() {
     notify("Conectando al servidor...");
     if(mqttClient) mqttClient.end();
     
-    // ID aleatorio para evitar conflictos
     const clientId = 'virus_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
@@ -117,7 +115,6 @@ function connectMqtt() {
             rivalTopic = `virusgame/${currentRoomCode}/host`;
         }
 
-        // Suscribirse
         mqttClient.subscribe(myTopic, { qos: 1 }, (err) => {
             if (!err) {
                 if (isHost) notify("Sala creada. Esperando rival...");
@@ -147,18 +144,17 @@ function sendData(type, content) {
 }
 
 function handleNetworkData(data) {
-    // CHAT
     if (data.type === 'CHAT') {
         addChatMessage(data.content.name, data.content.msg);
     }
 
-    // HANDSHAKE
     if (data.type === 'HANDSHAKE' && isHost) {
         opponentName = data.content.name.toUpperCase();
         setupUiMultiplayer();
         sendData('HANDSHAKE_REPLY', { name: myPlayerName });
         notify("Rival encontrado. Repartiendo...");
         playerWins = 0; aiWins = 0;
+        isRoundProcessing = false;
         updateScoreboard();
         roundStarter = 'p1';
         setTimeout(() => initGame(), 1000); 
@@ -170,7 +166,6 @@ function handleNetworkData(data) {
         notify("Conectado. Esperando reparto...");
     }
 
-    // JUEGO
     if (data.type === 'STATE_UPDATE') applyGameState(data.content);
     
     if (data.type === 'MOVE' && isHost) {
@@ -265,6 +260,7 @@ function renderChat() {
 
 // --- JUEGO CORE ---
 function initGame() {
+    isRoundProcessing = false; // ABRIMOS EL CERROJO AL INICIAR
     deck = []; discardPile = []; playerHand = []; aiHand = []; playerBody = []; aiBody = []; 
     selectedForDiscard.clear(); multiDiscardMode = false;
     lastActionLog = "Partida comenzada";
@@ -322,8 +318,10 @@ function broadcastState() {
 }
 
 function updateScoreboard() {
-    document.getElementById('p-score').innerText = playerWins;
-    document.getElementById('a-score').innerText = aiWins;
+    const pScore = document.getElementById('p-score');
+    const aScore = document.getElementById('a-score');
+    if(pScore) pScore.innerText = playerWins;
+    if(aScore) aScore.innerText = aiWins;
 }
 
 function loadScores() {
@@ -338,10 +336,14 @@ function checkWin() {
     let roundWinner = null;
     if (checkWinCondition(playerBody)) roundWinner = 'player';
     else if (checkWinCondition(aiBody)) roundWinner = 'ai';
+    
     if (roundWinner) handleRoundEnd(roundWinner);
 }
 
 function handleRoundEnd(winner) {
+    if (isRoundProcessing) return; // CERROJO: Si ya estamos procesando, salir
+    isRoundProcessing = true; // ACTIVAR CERROJO
+
     const target = parseInt(document.getElementById('target-wins').value) || 5;
     let tournamentOver = false;
 
@@ -360,7 +362,7 @@ function handleRoundEnd(winner) {
         tournamentOver = true; setTimeout(() => { alert("💀 " + opponentName + " GANA EL TORNEO"); resetSeries(); }, 500);
     } else {
         roundStarter = (roundStarter === 'p1') ? 'p2' : 'p1';
-        setTimeout(() => initGame(), 500);
+        setTimeout(() => initGame(), 500); // initGame abrirá el cerrojo
     }
 
     if (isMultiplayer && isHost) {
@@ -375,6 +377,7 @@ function checkWinCondition(body) { return body.filter(o => !o.infected).length >
 function resetSeries() {
     playerWins = 0; aiWins = 0;
     roundStarter = 'p1';
+    isRoundProcessing = false;
     if (!isMultiplayer) { localStorage.setItem('virus_playerWins', 0); localStorage.setItem('virus_aiWins', 0); }
     initGame();
 }
@@ -399,7 +402,7 @@ function drawCard() {
     } return deck.pop();
 }
 
-// --- LOGICA DE JUEGO (Restaurada y Completa) ---
+// --- LOGICA DE JUEGO ---
 function playCard(index) {
     if (isMultiplayer && !myTurn) { notify("⛔ Es el turno de " + opponentName); return; }
     if (multiDiscardMode) { toggleSelection(index); return; }
@@ -740,6 +743,5 @@ function confirmMultiDiscard() {
             setTimeout(aiTurn, 1000); 
         }
     }
-    
     multiDiscardMode = false; selectedForDiscard.clear(); render();
 }
