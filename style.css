@@ -94,10 +94,17 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .virus-effect { border: 3px dashed var(--accent-red) !important; }
 .selected-discard { border: 4px solid var(--accent-green) !important; transform: translateY(-15px) !important; box-shadow: 0 0 15px var(--accent-green); }
 
-/* BOTONES */
-.discard-btn { background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 4px 8px; border-radius: 12px; cursor: pointer; font-size: 0.7rem; margin-top: 5px; z-index: 5;}
+/* BOTONES (Arreglo Z-Index) */
+.discard-btn { 
+    background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.3); 
+    padding: 4px 8px; border-radius: 12px; cursor: pointer; font-size: 0.7rem; 
+    margin-top: 5px; 
+    z-index: 200; /* IMPORTANTE: POR ENCIMA DE LA CARTA */
+    position: relative;
+}
 .discard-btn:hover { background: #e74c3c; }
 .discard-btn.active { background: #2ecc71; border-color: #2ecc71; }
+
 .toggle-mode-btn, #restart-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid white; background: rgba(255,255,255,0.1); color: white; font-weight: bold; cursor: pointer; }
 .main-action-btn { padding: 8px 20px; background: #e74c3c; color: white; border: none; border-radius: 20px; font-weight: bold; font-size: 0.9rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 .cancel-btn { background: none; border: none; color: #ccc; text-decoration: underline; margin-left: 10px; cursor: pointer; }
@@ -115,7 +122,7 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .chat-msg b { color: #3498db; }
 .chat-msg.me b { color: #2ecc71; }
 
-/* MODAL DE VICTORIA (NUEVO) */
+/* MODAL DE VICTORIA */
 #round-modal {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(0,0,0,0.9); z-index: 2500;
@@ -137,7 +144,7 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
     box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
 }
 
-.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.5; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
+.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 
 @media (max-width: 500px) { 
