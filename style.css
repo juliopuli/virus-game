@@ -94,15 +94,17 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .virus-effect { border: 3px dashed var(--accent-red) !important; }
 .selected-discard { border: 4px solid var(--accent-green) !important; transform: translateY(-15px) !important; box-shadow: 0 0 15px var(--accent-green); }
 
-/* BOTONES (Arreglo Z-Index) */
+/* BOTÓN DE PAPELERA ARREGLADO */
 .discard-btn { 
-    background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.3); 
-    padding: 4px 8px; border-radius: 12px; cursor: pointer; font-size: 0.7rem; 
+    background: rgba(0,0,0,0.6); color: #fff; 
+    border: 1px solid rgba(255,255,255,0.5); padding: 5px 12px; 
+    border-radius: 15px; cursor: pointer; font-size: 0.8rem; 
     margin-top: 5px; 
-    z-index: 200; /* IMPORTANTE: POR ENCIMA DE LA CARTA */
+    z-index: 500; /* SUPERIOR A TODO */
     position: relative;
+    pointer-events: auto; /* Asegura el clic */
 }
-.discard-btn:hover { background: #e74c3c; }
+.discard-btn:hover { background: #e74c3c; border-color: #e74c3c; }
 .discard-btn.active { background: #2ecc71; border-color: #2ecc71; }
 
 .toggle-mode-btn, #restart-btn { padding: 8px 16px; border-radius: 20px; border: 1px solid white; background: rgba(255,255,255,0.1); color: white; font-weight: bold; cursor: pointer; }
@@ -149,5 +151,5 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 
 @media (max-width: 500px) { 
     :root { --card-w: 62px; --card-h: 96px; } 
-    .discard-btn { display: block; font-size: 0.6rem; padding: 2px 6px; }
+    .discard-btn { display: block; font-size: 0.6rem; padding: 4px 8px; }
 }
