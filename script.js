@@ -14,7 +14,7 @@ let turnIndex = 0;
 let lastActionLog = "Esperando inicio...";
 let chatMessages = [];
 let isChatOpen = false;
-let pendingAction = null; // { cardIndex: X, type: 'virus'|'ladron' } para selección táctil
+let pendingAction = null; // Selección táctil
 
 // Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
@@ -29,18 +29,20 @@ const icons = {
 
 // --- MENÚ ---
 function startLocalGame() {
+    // 1. Limpieza
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
     isMultiplayer = false; isHost = true;
     const name = document.getElementById('username').value || "Jugador";
     
-    // Configurar Local 1v1
+    // 2. Configurar 2 Jugadores (Humano vs Bot)
     players = [
         { name: name, hand: [], body: [], wins: 0, isBot: false },
         { name: "JULIO", hand: [], body: [], wins: 0, isBot: true }
     ];
     myPlayerIndex = 0;
     
-    startGameUI();
+    // 3. UI y Arranque
+    startGameUI(); // Oculta menú
     initGame();
 }
 
@@ -61,7 +63,12 @@ function startGameUI() {
     document.getElementById('restart-btn').style.display = 'block';
     
     // Activar envío con Enter en chat
-    document.getElementById('chat-input').addEventListener("keypress", function(event) {
+    const chatIn = document.getElementById('chat-input');
+    // Eliminar listeners antiguos para no duplicar
+    const newChatIn = chatIn.cloneNode(true);
+    chatIn.parentNode.replaceChild(newChatIn, chatIn);
+    
+    newChatIn.addEventListener("keypress", function(event) {
         if (event.key === "Enter") {
             event.preventDefault();
             sendChatMessage();
@@ -121,7 +128,9 @@ function connectMqtt() {
 
 function sendData(type, content) {
     if (mqttClient) {
-        const payload = JSON.stringify({ type: type, content: content, senderIdx: myPlayerIndex, senderName: isMultiplayer && myPlayerIndex !== -1 ? players[myPlayerIndex].name : "" });
+        // Enviar nombre para el chat
+        const senderName = (isMultiplayer && myPlayerIndex !== -1 && players[myPlayerIndex]) ? players[myPlayerIndex].name : document.getElementById('username').value;
+        const payload = JSON.stringify({ type: type, content: content, senderIdx: myPlayerIndex, senderName: senderName });
         mqttClient.publish(`${TOPIC_PREFIX}${roomCode}`, payload);
     }
 }
@@ -147,7 +156,8 @@ function handleNetworkData(data) {
         applyGameState(data.content);
         const myName = document.getElementById('username').value;
         myPlayerIndex = players.findIndex(p => p.name === myName);
-        startGameUI();
+        
+        startGameUI(); // ARRANCA LA UI DEL CLIENTE
         render();
     }
 
@@ -160,7 +170,6 @@ function handleNetworkData(data) {
     }
 
     if (data.type === 'CHAT') {
-        // Solo añadir si no soy yo el que lo envió (evita duplicados)
         if (data.content.name !== document.getElementById('username').value) {
             addChatMessage(data.content.name, data.content.msg);
         }
@@ -177,6 +186,7 @@ function updateLobbyUI() {
 }
 
 function hostStartGame() {
+    startGameUI(); // ARRANCA LA UI DEL HOST
     initGame(); 
 }
 
@@ -200,10 +210,14 @@ function initGame() {
     turnIndex = 0;
     lastActionLog = "¡Empieza la partida!";
     
+    // Si soy Host (o Local), notifico a todos o a la IA
     if (isHost) {
         broadcastState('GAME_START');
         checkAiTurn();
     }
+    
+    // Renderizado inicial local
+    render();
 }
 
 function broadcastState(type = 'STATE_UPDATE') {
@@ -227,30 +241,20 @@ function applyGameState(content) {
     render();
 }
 
-// --- ACCIONES DEL JUGADOR ---
+// --- ACCIONES ---
 function playCard(cardIndex) {
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
     
-    // Si estamos en modo selección táctil, cancelar
-    if (pendingAction) { 
-        cancelSelectionMode();
-        return; 
-    }
+    if (pendingAction) { cancelSelectionMode(); return; }
 
     const card = players[myPlayerIndex].hand[cardIndex];
     let targetIndex = myPlayerIndex; 
 
-    // LÓGICA DE SELECCIÓN TÁCTIL
+    // SELECCIÓN DE OBJETIVO (VIRUS/LADRON)
     if (card.type === 'virus' || card.name === 'Ladrón') {
-        // Entrar en modo selección
         enterSelectionMode(cardIndex, card.type);
         return; 
     }
-
-    // Medicinas y Órganos van por defecto al propio jugador
-    // (Simplificación: si quisieras curar a otro, habría que activar selección también)
-    // Para V3.0 mantenemos órganos y medicinas automáticos a uno mismo para agilidad,
-    // salvo virus y ladrón que requieren víctima.
 
     submitMove(cardIndex, targetIndex);
 }
@@ -258,7 +262,7 @@ function playCard(cardIndex) {
 function enterSelectionMode(cardIndex, type) {
     pendingAction = { cardIndex: cardIndex, type: type };
     notify("TOCA UN JUGADOR PARA ATACAR");
-    render(); // Esto activará el brillo en los tableros
+    render(); 
 }
 
 function cancelSelectionMode() {
@@ -269,16 +273,13 @@ function cancelSelectionMode() {
 
 function handleBoardClick(targetPlayerIndex) {
     if (!pendingAction) return;
-    
     if (targetPlayerIndex === myPlayerIndex && pendingAction.type === 'ladron') {
         notify("❌ No puedes robarte a ti mismo");
         return;
     }
-
-    // Ejecutar jugada con el objetivo seleccionado
     submitMove(pendingAction.cardIndex, targetPlayerIndex);
-    pendingAction = null; // Reset
-    render(); // Limpiar brillo
+    pendingAction = null; 
+    render(); 
 }
 
 function submitMove(cardIndex, targetIndex) {
@@ -290,10 +291,7 @@ function submitMove(cardIndex, targetIndex) {
 }
 
 function discardCard(cardIndex) {
-    // Si es modo selección, toggle
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
-    
-    // Si es descarte rápido
     if (turnIndex !== myPlayerIndex) return;
     
     if (isMultiplayer && !isHost) {
@@ -365,10 +363,9 @@ function executeMove(pIdx, cIdx, tIdx) {
             });
             success = true; log = `${actor.name} usó Guante de Látex`;
         }
-        // Otros tratamientos simplificados para V3
         if (card.name === 'Trasplante' || card.name === 'Contagio' || card.name === 'Error Médico') {
-             discardPile.push(card); // Efecto visual por ahora
-             success = true; log = `${actor.name} usó ${card.name} (Efecto Simplificado)`;
+             discardPile.push(card); 
+             success = true; log = `${actor.name} usó ${card.name} (Visual)`;
         }
     }
 
@@ -405,7 +402,6 @@ function nextTurn(log) {
     lastActionLog = log;
     turnIndex = (turnIndex + 1) % players.length;
     
-    // Check Win
     let winner = null;
     players.forEach(p => {
         let healthy = p.body.filter(o => !o.infected).length;
@@ -415,8 +411,8 @@ function nextTurn(log) {
     if (winner) {
         winner.wins++;
         lastActionLog = `🏆 ¡${winner.name} GANA LA RONDA!`;
-        broadcastState(); // Mostrar victoria
-        setTimeout(() => initGame(), 3000); // Reinicio automático
+        broadcastState(); 
+        setTimeout(() => initGame(), 3000); 
     } else {
         broadcastState();
         render();
@@ -432,6 +428,7 @@ function checkAiTurn() {
 
 function aiPlay() {
     const bot = players[turnIndex];
+    // Intenta jugar órgano
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
             executeMove(turnIndex, i, turnIndex);
@@ -457,22 +454,17 @@ function render() {
     const rivals = players.filter((p, i) => i !== myPlayerIndex);
     
     if (rivals.length > 0) {
-        // Ajustar grid
         rivalContainer.style.gridTemplateColumns = rivals.length === 1 ? "1fr" : "1fr 1fr";
         
         rivals.forEach(p => {
             const pIndex = players.indexOf(p);
             const div = document.createElement('div');
-            // Clase active-turn si es su turno
-            // Clase selectable-target si estamos eligiendo víctima
             let classes = `board-section`;
             if (turnIndex === pIndex) classes += ' active-turn';
             if (pendingAction) classes += ' selectable-target';
             
             div.className = classes;
             div.innerHTML = `<h3>${p.name} (${p.wins}🏆)</h3><div class="body-slots"></div>`;
-            
-            // CLICK PARA SELECCIONAR OBJETIVO
             div.onclick = () => handleBoardClick(pIndex);
             
             renderBody(p.body, div.querySelector('.body-slots'));
@@ -481,12 +473,11 @@ function render() {
     }
 
     // 2. Renderizar Yo
-    const myPlayer = players[myPlayerIndex];
-    if (myPlayer) {
+    if (myPlayerIndex !== -1 && players[myPlayerIndex]) {
+        const myPlayer = players[myPlayerIndex];
         const myBodyDiv = document.getElementById('player-body');
         renderBody(myPlayer.body, myBodyDiv);
         
-        // Renderizar Mano con Botones de Descarte
         const handDiv = document.getElementById('player-hand');
         handDiv.innerHTML = '';
         myPlayer.hand.forEach((c, i) => {
@@ -495,14 +486,12 @@ function render() {
             
             const cardDiv = document.createElement('div');
             let isSelected = selectedForDiscard.has(i);
-            // Si es la carta que estamos "aguantando" para seleccionar objetivo, iluminarla
             let isPending = (pendingAction && pendingAction.cardIndex === i);
             
             cardDiv.className = `card ${c.color||'treatment'} ${isSelected?'selected-discard':''} ${isPending?'active-turn':''}`;
             cardDiv.onclick = () => playCard(i);
             cardDiv.innerHTML = `${icons[c.type]||icons.treatment}<b>${c.name||c.type}</b>`;
             
-            // Botón Descarte
             const btn = document.createElement('button');
             if (multiDiscardMode) {
                 btn.className = isSelected ? 'discard-btn active' : 'discard-btn';
@@ -513,17 +502,12 @@ function render() {
                 btn.innerText = '🗑️';
                 btn.onclick = (e) => { e.stopPropagation(); discardCard(i); };
             }
-            
-            container.appendChild(cardDiv);
-            container.appendChild(btn);
-            handDiv.appendChild(container);
+            container.appendChild(cardDiv); container.appendChild(btn); handDiv.appendChild(container);
         });
 
-        // Resaltar mi tablero si es mi turno O si me puedo auto-seleccionar (ej: medicina)
         const mySection = document.querySelector('.board-section:last-of-type');
-        mySection.className = 'board-section'; // Reset
+        mySection.className = 'board-section';
         if (turnIndex === myPlayerIndex) mySection.classList.add('active-turn');
-        // V3.0: Por ahora solo se selecciona rivales para ataques, pero dejamos preparado
         if (pendingAction && pendingAction.type === 'medicine') mySection.classList.add('selectable-target'); 
         
         // Controles Multidescarte
@@ -544,8 +528,7 @@ function render() {
             cancel.className = 'cancel-btn';
             cancel.innerText = 'Cancelar';
             cancel.onclick = toggleMultiDiscardMode;
-            controls.appendChild(confirm);
-            controls.appendChild(cancel);
+            controls.appendChild(confirm); controls.appendChild(cancel);
         }
     }
 }
@@ -575,7 +558,7 @@ function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if(msg) {
-        addChatMessage(players[myPlayerIndex].name, msg); // Local instantáneo
+        addChatMessage(players[myPlayerIndex].name, msg);
         sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg });
         input.value = '';
     }
@@ -588,7 +571,6 @@ function addChatMessage(name, msg) {
     if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline';
 }
 
-// MULTIDESCARTE
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
 function confirmMultiDiscard() {
@@ -599,7 +581,7 @@ function confirmMultiDiscard() {
         const actor = players[myPlayerIndex];
         indices.forEach(i => { discardPile.push(actor.hand[i]); actor.hand.splice(i,1); });
         refillHand(actor);
-        nextTurn(`${actor.name} descartó ${indices.length}`);
+        nextTurn(`${actor.name} descartó ${indices.length} cartas`);
     }
     multiDiscardMode = false; selectedForDiscard.clear();
 }
