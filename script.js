@@ -821,3 +821,8 @@ function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMess
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
 function confirmMultiDiscard() { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.size === 0) { toggleMultiDiscardMode(); return; } let indices = Array.from(selectedForDiscard).sort((a,b)=>b-a); if(isMultiplayer && !isHost) sendData('MULTI_DISCARD', {playerIndex: myPlayerIndex, indices: indices}); else { const actor = players[myPlayerIndex]; indices.forEach(i => { discardPile.push(actor.hand[i]); actor.hand.splice(i,1); }); refillHand(actor); nextTurn(`${actor.name} descartó ${indices.length} cartas`); } multiDiscardMode = false; selectedForDiscard.clear(); }
+function confirmExit() {
+    if (confirm("⚠️ ¿Seguro que quieres salir?\n\nSe perderá la conexión y el progreso de la partida.")) {
+        location.reload();
+    }
+}
