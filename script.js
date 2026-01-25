@@ -14,9 +14,8 @@ let turnIndex = 0;
 let lastActionLog = "Esperando inicio...";
 let chatMessages = [];
 let isChatOpen = false;
-let pendingAction = null; // Selección táctil
+let pendingAction = null; 
 
-// Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
 const TOPIC_PREFIX = 'virusgame/v3/'; 
 
@@ -29,20 +28,17 @@ const icons = {
 
 // --- MENÚ ---
 function startLocalGame() {
-    // 1. Limpieza
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
     isMultiplayer = false; isHost = true;
     const name = document.getElementById('username').value || "Jugador";
     
-    // 2. Configurar 2 Jugadores (Humano vs Bot)
     players = [
         { name: name, hand: [], body: [], wins: 0, isBot: false },
         { name: "JULIO", hand: [], body: [], wins: 0, isBot: true }
     ];
     myPlayerIndex = 0;
     
-    // 3. UI y Arranque
-    startGameUI(); // Oculta menú
+    startGameUI(); 
     initGame();
 }
 
@@ -62,12 +58,9 @@ function startGameUI() {
     document.getElementById('chat-btn').style.display = isMultiplayer ? 'flex' : 'none';
     document.getElementById('restart-btn').style.display = 'block';
     
-    // Activar envío con Enter en chat
     const chatIn = document.getElementById('chat-input');
-    // Eliminar listeners antiguos para no duplicar
     const newChatIn = chatIn.cloneNode(true);
     chatIn.parentNode.replaceChild(newChatIn, chatIn);
-    
     newChatIn.addEventListener("keypress", function(event) {
         if (event.key === "Enter") {
             event.preventDefault();
@@ -83,9 +76,7 @@ function createRoom() {
     document.getElementById('room-code-display').style.display = 'block';
     document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
     
-    isHost = true;
-    isMultiplayer = true;
-    
+    isHost = true; isMultiplayer = true;
     const name = document.getElementById('username').value;
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     myPlayerIndex = 0;
@@ -97,9 +88,7 @@ function createRoom() {
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value;
     if (!code) return alert("Falta código");
-    
-    isHost = false; 
-    isMultiplayer = true;
+    isHost = false; isMultiplayer = true;
     roomCode = code;
     connectMqtt();
 }
@@ -128,9 +117,7 @@ function connectMqtt() {
 
 function sendData(type, content) {
     if (mqttClient) {
-        // Enviar nombre para el chat
-        const senderName = (isMultiplayer && myPlayerIndex !== -1 && players[myPlayerIndex]) ? players[myPlayerIndex].name : document.getElementById('username').value;
-        const payload = JSON.stringify({ type: type, content: content, senderIdx: myPlayerIndex, senderName: senderName });
+        const payload = JSON.stringify({ type: type, content: content, senderIdx: myPlayerIndex });
         mqttClient.publish(`${TOPIC_PREFIX}${roomCode}`, payload);
     }
 }
@@ -156,8 +143,7 @@ function handleNetworkData(data) {
         applyGameState(data.content);
         const myName = document.getElementById('username').value;
         myPlayerIndex = players.findIndex(p => p.name === myName);
-        
-        startGameUI(); // ARRANCA LA UI DEL CLIENTE
+        startGameUI();
         render();
     }
 
@@ -176,7 +162,6 @@ function handleNetworkData(data) {
     }
 }
 
-// --- FUNCIONES DEL HOST ---
 function updateLobbyUI() {
     const list = document.getElementById('lobby-list');
     list.innerHTML = players.map(p => `✅ ${p.name}`).join('<br>');
@@ -186,11 +171,11 @@ function updateLobbyUI() {
 }
 
 function hostStartGame() {
-    startGameUI(); // ARRANCA LA UI DEL HOST
+    startGameUI(); // Cierra menú del host
     initGame(); 
 }
 
-// --- MOTOR DEL JUEGO ---
+// --- JUEGO ---
 function initGame() {
     deck = []; discardPile = [];
     colors.forEach(c => {
@@ -210,13 +195,10 @@ function initGame() {
     turnIndex = 0;
     lastActionLog = "¡Empieza la partida!";
     
-    // Si soy Host (o Local), notifico a todos o a la IA
     if (isHost) {
         broadcastState('GAME_START');
         checkAiTurn();
     }
-    
-    // Renderizado inicial local
     render();
 }
 
@@ -241,21 +223,31 @@ function applyGameState(content) {
     render();
 }
 
+// --- LÓGICA ROBO ---
+function refillHand(player) {
+    while (player.hand.length < 3) {
+        if (deck.length === 0) {
+            if (discardPile.length === 0) break; // No quedan cartas en ninguna parte
+            // Barajar descartes
+            deck = discardPile.sort(() => Math.random() - 0.5);
+            discardPile = [];
+        }
+        player.hand.push(deck.pop());
+    }
+}
+
 // --- ACCIONES ---
 function playCard(cardIndex) {
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
-    
     if (pendingAction) { cancelSelectionMode(); return; }
 
     const card = players[myPlayerIndex].hand[cardIndex];
     let targetIndex = myPlayerIndex; 
 
-    // SELECCIÓN DE OBJETIVO (VIRUS/LADRON)
     if (card.type === 'virus' || card.name === 'Ladrón') {
         enterSelectionMode(cardIndex, card.type);
         return; 
     }
-
     submitMove(cardIndex, targetIndex);
 }
 
@@ -320,6 +312,7 @@ function executeMove(pIdx, cIdx, tIdx) {
     let success = false;
     let log = "";
 
+    // REGLAS
     if (card.type === 'organ') {
         if (!target.body.find(o => o.color === card.color)) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
@@ -358,7 +351,7 @@ function executeMove(pIdx, cIdx, tIdx) {
                 if(p !== actor) { 
                     p.hand.forEach(c => discardPile.push(c)); 
                     p.hand = []; 
-                    refillHand(p);
+                    refillHand(p); // Importante: Rellenar manos inmediatamente
                 } 
             });
             success = true; log = `${actor.name} usó Guante de Látex`;
@@ -372,7 +365,7 @@ function executeMove(pIdx, cIdx, tIdx) {
     if (success) {
         discardPile.push(card);
         actor.hand.splice(cIdx, 1);
-        refillHand(actor);
+        refillHand(actor); // Rellenar mano siempre
         nextTurn(log);
     } else if (pIdx === myPlayerIndex) {
         notify("⚠️ Jugada no válida en ese objetivo");
@@ -387,21 +380,11 @@ function executeDiscard(pIdx, cIdx) {
     nextTurn(`${actor.name} descartó`);
 }
 
-function refillHand(player) {
-    while (player.hand.length < 3) {
-        if (deck.length === 0) {
-            if (discardPile.length === 0) break;
-            deck = discardPile.sort(() => Math.random() - 0.5);
-            discardPile = [];
-        }
-        player.hand.push(deck.pop());
-    }
-}
-
 function nextTurn(log) {
     lastActionLog = log;
     turnIndex = (turnIndex + 1) % players.length;
     
+    // Check Win
     let winner = null;
     players.forEach(p => {
         let healthy = p.body.filter(o => !o.infected).length;
@@ -428,7 +411,6 @@ function checkAiTurn() {
 
 function aiPlay() {
     const bot = players[turnIndex];
-    // Intenta jugar órgano
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
             executeMove(turnIndex, i, turnIndex);
@@ -442,7 +424,6 @@ function aiPlay() {
 function render() {
     document.getElementById('deck-count').innerText = deck.length;
     
-    // Indicador de turno
     const turnName = players[turnIndex] ? players[turnIndex].name : "...";
     document.getElementById('turn-indicator').innerHTML = 
         `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
@@ -459,6 +440,7 @@ function render() {
         rivals.forEach(p => {
             const pIndex = players.indexOf(p);
             const div = document.createElement('div');
+            
             let classes = `board-section`;
             if (turnIndex === pIndex) classes += ' active-turn';
             if (pendingAction) classes += ' selectable-target';
@@ -474,13 +456,13 @@ function render() {
 
     // 2. Renderizar Yo
     if (myPlayerIndex !== -1 && players[myPlayerIndex]) {
-        const myPlayer = players[myPlayerIndex];
+        const me = players[myPlayerIndex];
         const myBodyDiv = document.getElementById('player-body');
-        renderBody(myPlayer.body, myBodyDiv);
+        renderBody(me.body, myBodyDiv);
         
         const handDiv = document.getElementById('player-hand');
         handDiv.innerHTML = '';
-        myPlayer.hand.forEach((c, i) => {
+        me.hand.forEach((c, i) => {
             const container = document.createElement('div');
             container.className = 'card-container';
             
@@ -505,12 +487,13 @@ function render() {
             container.appendChild(cardDiv); container.appendChild(btn); handDiv.appendChild(container);
         });
 
+        // Foco Verde
         const mySection = document.querySelector('.board-section:last-of-type');
-        mySection.className = 'board-section';
+        mySection.className = 'board-section'; 
         if (turnIndex === myPlayerIndex) mySection.classList.add('active-turn');
         if (pendingAction && pendingAction.type === 'medicine') mySection.classList.add('selectable-target'); 
         
-        // Controles Multidescarte
+        // Botones Multidescarte
         const controls = document.getElementById('dynamic-controls');
         controls.innerHTML = '';
         if (!multiDiscardMode) {
@@ -558,8 +541,10 @@ function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if(msg) {
-        addChatMessage(players[myPlayerIndex].name, msg);
-        sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg });
+        // En local solo añado
+        addChatMessage(players[myPlayerIndex].name, msg); 
+        // Si online, también envío
+        if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg });
         input.value = '';
     }
 }
