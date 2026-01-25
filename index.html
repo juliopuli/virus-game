@@ -5,42 +5,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Virus! 4 Players</title>
+    <title>Virus! Modern</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
 </head>
 <body>
     
     <div id="main-menu">
-        <div class="menu-box">
-            <h1>VIRUS!</h1>
-            <input type="text" id="username" placeholder="Tu Nombre" class="name-input">
+        <h1 class="game-title">JUEGO<span class="title-virus">VIRUS</span></h1>
+
+        <div class="menu-box-modern">
+            <input type="text" id="username" placeholder="Tu Nombre (ej: Pablo)" class="modern-input" autocomplete="off">
             
-            <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Local)</button>
-            <div class="divider"></div>
-            <button onclick="showMultiplayerOptions()" class="menu-btn">👥 Multiplayer (Online)</button>
+            <button onclick="startLocalGame()" class="modern-btn btn-orange-glow">
+                👤 vs 🤖 (Local)
+            </button>
             
-            <div id="mp-options" style="display:none; margin-top:15px;">
-                <button onclick="createRoom()" class="mp-action-btn host">Crear Sala</button>
-                <button onclick="joinRoomUI()" class="mp-action-btn join">Unirse</button>
+            <button onclick="showMultiplayerOptions()" class="modern-btn">
+                👥 Multiplayer (Online)
+            </button>
+
+            <div class="meta-container">
+                <label for="target-wins-main">Meta:</label>
+                <div class="modern-select-container">
+                    <select id="target-wins-main">
+                        <option value="3">3 🏆</option>
+                        <option value="5" selected>5 🏆</option>
+                        <option value="7">7 🏆</option>
+                        <option value="10">10 🏆</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="mp-options" style="display:none;">
+                <div class="mp-grid">
+                    <button onclick="createRoom()" class="modern-btn mp-btn-half" style="background: #27ae60; border-color:#2ecc71;">Crear Sala</button>
+                    <button onclick="joinRoomUI()" class="modern-btn mp-btn-half">Unirse</button>
+                </div>
                 
-                <div id="room-code-display" style="display:none;">
-                    <p>CÓDIGO:</p>
+                <div id="room-code-display" style="display:none; margin-top: 15px;">
+                    <p style="color:#ccc; margin:0;">CÓDIGO DE SALA:</p>
                     <h2 id="my-code">...</h2>
-                    <div id="lobby-list" style="margin:15px 0; font-size:1rem; color:#f1c40f; min-height: 20px;">
+                    <div id="lobby-list" style="margin:10px 0; font-size:1rem; min-height: 20px;">
                         Esperando jugadores...
                     </div>
-                    <button id="start-game-btn" onclick="hostStartGame()" class="confirm-btn" style="display:none; background:#e74c3c; margin-top:15px; width:100%;">
+                    <button id="start-game-btn" onclick="hostStartGame()" class="modern-btn btn-orange-glow" style="display:none; margin-top:10px;">
                         ¡EMPEZAR PARTIDA!
                     </button>
                 </div>
                 
-                <div id="join-input-area" style="display:none;">
-                    <input type="text" id="remote-code-input" placeholder="Código de Sala">
-                    <button onclick="connectToPeer()" class="confirm-btn">Entrar</button>
+                <div id="join-input-area" style="display:none; margin-top: 15px;">
+                    <input type="text" id="remote-code-input" placeholder="Introduce Código" class="modern-input" style="margin-bottom: 10px;">
+                    <button onclick="connectToPeer()" class="modern-btn" style="background: #27ae60; border-color:#2ecc71;">Entrar</button>
                 </div>
+                 <p id="connection-status" style="margin-top: 15px; color: #aaa; font-size: 0.9rem;"></p>
             </div>
-            <p id="connection-status" style="margin-top: 10px; color: #ccc; font-size: 0.8rem;"></p>
+        </div>
+
+        <div class="menu-footer-styled">
+            🤖 powered by @aljupa
         </div>
     </div>
 
@@ -63,19 +87,14 @@
     </div>
 
     <div id="game-container" class="blurred">
-        <div id="scoreboard-area">
-            </div>
+        <div id="scoreboard-area"></div>
         <div id="notification-bar">...</div>
-        
         <div id="rivals-container"></div>
-
         <div id="deck-area">
             <div id="dynamic-controls"></div>
             <div class="deck-info"><div class="card deck-visual"><span id="deck-count">0</span></div></div>
-            
             <button onclick="confirmExit()" id="restart-btn" style="display:none">Salir</button>
         </div>
-
         <div class="board-section" id="my-board-section">
             <div id="player-body" class="body-slots"></div>
             <h3>👤 TU SALUD</h3>
@@ -83,7 +102,7 @@
         </div>
     </div>
     
-    <div class="version-display">V.3.8.2.1</div>
+    <div class="version-display">V.3.8.3</div>
     <script src="script.js"></script>
 </body>
 </html>
