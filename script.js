@@ -18,11 +18,12 @@ let pendingAction = null;
 let transplantSource = null;
 let visualDeckCount = 0;
 let joinInterval = null;
+let hostBeaconInterval = null; // NUEVO: Baliza del host
 let targetWins = 3; 
 
 // Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_5/'; 
+const TOPIC_PREFIX = 'virusgame/v3_5_1/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -33,10 +34,9 @@ const icons = {
 
 // --- MENÚ ---
 function startLocalGame() {
-    if(mqttClient) { mqttClient.end(); mqttClient = null; }
+    stopNetwork();
     isMultiplayer = false; isHost = true;
-    let name = document.getElementById('username').value || "Jugador";
-    name = name.substring(0, 10); // Límite 10 chars
+    let name = getCleanName();
     
     players = [
         { name: name, hand: [], body: [], wins: 0, isBot: false },
@@ -49,7 +49,7 @@ function startLocalGame() {
 }
 
 function showMultiplayerOptions() {
-    if(!document.getElementById('username').value) return alert("¡Escribe tu nombre!");
+    if(!getCleanName()) return alert("¡Escribe tu nombre!");
     document.getElementById('mp-options').style.display = 'block';
 }
 
@@ -72,6 +72,18 @@ function startGameUI() {
     });
 }
 
+function getCleanName() {
+    const el = document.getElementById('username');
+    if(el && el.value) return el.value.trim().substring(0, 10).toUpperCase();
+    return "";
+}
+
+function stopNetwork() {
+    if(joinInterval) clearInterval(joinInterval);
+    if(hostBeaconInterval) clearInterval(hostBeaconInterval);
+    if(mqttClient) { mqttClient.end(); mqttClient = null; }
+}
+
 // --- RED (MQTT) ---
 function createRoom() {
     roomCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -80,8 +92,7 @@ function createRoom() {
     document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
     
     isHost = true; isMultiplayer = true;
-    let name = document.getElementById('username').value;
-    name = name.substring(0, 10); // Límite
+    const name = getCleanName();
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     myPlayerIndex = 0;
     
@@ -98,16 +109,24 @@ function connectToPeer() {
 }
 
 function connectMqtt() {
-    if(joinInterval) clearInterval(joinInterval);
-    if(mqttClient) mqttClient.end();
+    stopNetwork();
 
-    const clientId = 'v35_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v351_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
+        // Suscribirse a todo lo de la sala
         mqttClient.subscribe(`${TOPIC_PREFIX}${roomCode}`, { qos: 1 }, (err) => {
             if (!err) {
-                if (!isHost) startJoinLoop();
+                if (isHost) {
+                    // Host activa la baliza
+                    hostBeaconInterval = setInterval(() => {
+                        sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
+                    }, 2000); // Enviar lista cada 2s
+                } else {
+                    // Cliente envía un saludo y espera la baliza
+                    startJoinLoop();
+                }
             } else alert("Error conexión servidor");
         });
     });
@@ -121,38 +140,45 @@ function connectMqtt() {
 }
 
 function startJoinLoop() {
-    let name = document.getElementById('username').value;
-    name = name.substring(0, 10); // Límite
+    const name = getCleanName();
     document.getElementById('connection-status').innerText = "Conectando...";
     sendData('JOIN', { name: name });
-    joinInterval = setInterval(() => { sendData('JOIN', { name: name }); }, 2000);
+    
+    // Insistir si no hay respuesta pronto
+    joinInterval = setInterval(() => { 
+        sendData('JOIN', { name: name }); 
+    }, 3000);
 }
 
 function sendData(type, content) {
     if (mqttClient) {
-        const senderName = (isMultiplayer && myPlayerIndex !== -1 && players[myPlayerIndex]) ? players[myPlayerIndex].name : document.getElementById('username').value.substring(0,10);
+        const senderName = (isMultiplayer && myPlayerIndex !== -1 && players[myPlayerIndex]) ? players[myPlayerIndex].name : getCleanName();
         const payload = JSON.stringify({ type: type, content: content, senderIdx: myPlayerIndex, senderName: senderName });
         mqttClient.publish(`${TOPIC_PREFIX}${roomCode}`, payload);
     }
 }
 
 function handleNetworkData(data) {
+    // 1. HOST: ALGUIEN ENTRA
     if (isHost && data.type === 'JOIN') {
         const exists = players.find(p => p.name === data.content.name);
         if (!exists && players.length < 4) {
             players.push({ name: data.content.name, hand: [], body: [], wins: 0, isBot: false });
             updateLobbyUI();
-            sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
-        } else if (exists) {
+            // Responder inmediatamente, además de la baliza
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
         }
     }
 
+    // 2. CLIENTE: RECIBE LISTA (BALIZA)
     if (data.type === 'LOBBY_UPDATE') {
-        let myName = document.getElementById('username').value.substring(0, 10);
+        const myName = getCleanName();
         if (data.content.names.includes(myName)) {
+            // Estoy dentro
             if (joinInterval) clearInterval(joinInterval);
+            
             if (!isHost) {
+                // UI Cliente
                 document.getElementById('join-input-area').style.display = 'none';
                 document.getElementById('room-code-display').style.display = 'block';
                 document.getElementById('my-code').innerText = roomCode;
@@ -160,17 +186,21 @@ function handleNetworkData(data) {
                 document.getElementById('lobby-list').innerHTML = data.content.names.map(n => `✅ ${n}`).join('<br>');
                 document.getElementById('connection-status').innerText = "¡Dentro! Esperando al Host...";
             } else {
+                // UI Host
                 document.getElementById('lobby-list').innerHTML = data.content.names.map(n => `✅ ${n}`).join('<br>');
             }
         }
     }
 
+    // 3. EMPIEZA LA PARTIDA
     if (data.type === 'GAME_START') {
+        stopNetwork(); // Parar balizas de lobby
         applyGameState(data.content);
-        const myName = document.getElementById('username').value.substring(0, 10);
+        const myName = getCleanName();
         myPlayerIndex = players.findIndex(p => p.name === myName);
         startGameUI();
         render();
+        // Reconectar solo para juego (mantener la misma conexión mqtt es valido, solo limpiamos intervalos)
     }
 
     if (data.type === 'STATE_UPDATE') applyGameState(data.content);
@@ -187,11 +217,13 @@ function handleNetworkData(data) {
 function updateLobbyUI() {
     const list = document.getElementById('lobby-list');
     list.innerHTML = players.map(p => `✅ ${p.name}`).join('<br>');
-    if (players.length >= 2) document.getElementById('start-game-btn').style.display = 'block';
+    if (players.length >= 2) {
+        document.getElementById('start-game-btn').style.display = 'block';
+    }
 }
 
 function hostStartGame() {
-    if (joinInterval) clearInterval(joinInterval);
+    stopNetwork(); // Parar la baliza del lobby
     startGameUI(); 
     initGame(); 
 }
@@ -452,6 +484,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
 function nextTurn(log) {
     lastActionLog = log;
     turnIndex = (turnIndex + 1) % players.length;
+    
     let winner = null;
     players.forEach(p => {
         let healthy = p.body.filter(o => !o.infected).length;
@@ -490,11 +523,8 @@ function aiPlay() {
 // --- RENDER ---
 function render() {
     document.getElementById('deck-count').innerText = visualDeckCount;
-    
-    // MARCADOR BONITO
     const turnName = players[turnIndex] ? players[turnIndex].name : "...";
-    document.getElementById('turn-indicator').innerHTML = 
-        `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
+    document.getElementById('turn-indicator').innerHTML = `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
     
     let scoreText = "";
     players.forEach(p => scoreText += `${p.name.substring(0,5)}:${p.wins} `);
@@ -580,31 +610,27 @@ function renderBody(body, container, ownerIndex) {
             const card = pendingAction.card;
             let isValid = false;
             
-            // Medicina / Virus
-            if (card.type === 'medicine' || card.type === 'virus') {
-                if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor')) isValid = true;
-            } 
-            // Ladrón
-            else if (card.name === 'Ladrón') {
-                if (ownerIndex !== myPlayerIndex && o.vaccines < 2) isValid = true;
-            }
-            // Contagio
-            else if (card.name === 'Contagio') {
+            if (card.type === 'medicine') {
+                if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) isValid = true;
+            } else if (card.type === 'virus') {
+                if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2) isValid = true;
+            } else if (card.name === 'Ladrón') {
+                if (ownerIndex !== myPlayerIndex && o.vaccines < 2) {
+                    const me = players[myPlayerIndex];
+                    if (!me.body.some(myOrg => myOrg.color === o.color)) isValid = true;
+                }
+            } else if (card.name === 'Contagio') {
                 if (ownerIndex !== myPlayerIndex && !o.infected && o.vaccines === 0) {
                     const me = players[myPlayerIndex];
                     if (me.body.some(my => (my.color === o.color || my.color === 'multicolor' || o.color === 'multicolor') && my.infected)) isValid = true;
                 }
-            }
-            // Trasplante
-            else if (card.name === 'Trasplante') {
+            } else if (card.name === 'Trasplante') {
                 if (!transplantSource) {
                     if (ownerIndex === myPlayerIndex && o.vaccines < 2) isValid = true; 
                 } else {
                     if (ownerIndex !== myPlayerIndex && o.vaccines < 2) isValid = true; 
                 }
-            }
-            // Error Médico
-            else if (card.name === 'Error Médico') {
+            } else if (card.name === 'Error Médico') {
                 if (ownerIndex !== myPlayerIndex) isValid = true;
             }
 
@@ -628,7 +654,6 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 
-// CHAT
 function toggleChat() { 
     const m = document.getElementById('chat-modal');
     isChatOpen = !isChatOpen;
