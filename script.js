@@ -16,11 +16,11 @@ let chatMessages = [];
 let isChatOpen = false;
 let pendingAction = null; 
 let visualDeckCount = 0;
-let joinInterval = null; // NUEVO: Para insistir en la conexión
+let joinInterval = null; 
 
 // Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_3/'; // Canal nuevo V3.3
+const TOPIC_PREFIX = 'virusgame/v3_3_1/'; // Canal limpio
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -88,31 +88,23 @@ function createRoom() {
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value;
     if (!code) return alert("Falta código");
-    
     isHost = false; isMultiplayer = true;
     roomCode = code;
     connectMqtt();
 }
 
 function connectMqtt() {
-    // Limpieza agresiva
     if(joinInterval) clearInterval(joinInterval);
     if(mqttClient) mqttClient.end();
 
-    const clientId = 'v33_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v331_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
-        // Suscripción al canal de la sala
         mqttClient.subscribe(`${TOPIC_PREFIX}${roomCode}`, { qos: 1 }, (err) => {
             if (!err) {
-                if (!isHost) {
-                    // Si soy cliente, empiezo a gritar "JOIN" hasta que me oigan
-                    startJoinLoop();
-                }
-            } else {
-                alert("Error de conexión al servidor");
-            }
+                if (!isHost) startJoinLoop();
+            } else alert("Error conexión servidor");
         });
     });
 
@@ -126,16 +118,9 @@ function connectMqtt() {
 
 function startJoinLoop() {
     const name = document.getElementById('username').value;
-    document.getElementById('connection-status').innerText = "Intentando conectar...";
-    
-    // Enviar primer intento
+    document.getElementById('connection-status').innerText = "Conectando...";
     sendData('JOIN', { name: name });
-    
-    // Repetir cada 2 segundos hasta recibir confirmación (LOBBY_UPDATE)
-    joinInterval = setInterval(() => {
-        console.log("Reintentando entrar...");
-        sendData('JOIN', { name: name });
-    }, 2000);
+    joinInterval = setInterval(() => { sendData('JOIN', { name: name }); }, 2000);
 }
 
 function sendData(type, content) {
@@ -147,39 +132,32 @@ function sendData(type, content) {
 }
 
 function handleNetworkData(data) {
-    // 1. HOST GESTIONA ENTRADAS
     if (isHost && data.type === 'JOIN') {
         const exists = players.find(p => p.name === data.content.name);
         if (!exists && players.length < 4) {
             players.push({ name: data.content.name, hand: [], body: [], wins: 0, isBot: false });
-            // Host actualiza su UI
-            updateLobbyUI(); 
-            // Host avisa a todos de la nueva lista
+            updateLobbyUI();
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
         } else if (exists) {
-            // Si ya existe (por el reintento), reenviamos la lista para que el cliente sepa que está dentro
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
         }
     }
 
-    // 2. CLIENTE RECIBE LISTA DE JUGADORES
     if (data.type === 'LOBBY_UPDATE') {
         const myName = document.getElementById('username').value;
         if (data.content.names.includes(myName)) {
-            // ¡ESTOY DENTRO! Parar de insistir
             if (joinInterval) clearInterval(joinInterval);
-            
-            // Cambiar UI del cliente a "Sala de Espera"
-            document.getElementById('join-input-area').style.display = 'none';
-            document.getElementById('room-code-display').style.display = 'block';
-            document.getElementById('my-code').innerText = roomCode; // Mostrar código también al cliente
-            document.getElementById('start-game-btn').style.display = 'none'; // Cliente no puede iniciar
-            
-            // Mostrar lista
-            const list = document.getElementById('lobby-list');
-            list.innerHTML = data.content.names.map(n => `✅ ${n}`).join('<br>');
-            
-            document.getElementById('connection-status').innerText = "";
+            if (!isHost) {
+                document.getElementById('join-input-area').style.display = 'none';
+                document.getElementById('room-code-display').style.display = 'block';
+                document.getElementById('my-code').innerText = roomCode;
+                document.getElementById('start-game-btn').style.display = 'none';
+                document.getElementById('lobby-list').innerHTML = data.content.names.map(n => `✅ ${n}`).join('<br>');
+                document.getElementById('connection-status').innerText = "¡Dentro! Esperando al Host...";
+            } else {
+                // Host también actualiza su lista
+                document.getElementById('lobby-list').innerHTML = data.content.names.map(n => `✅ ${n}`).join('<br>');
+            }
         }
     }
 
@@ -205,11 +183,13 @@ function handleNetworkData(data) {
 function updateLobbyUI() {
     const list = document.getElementById('lobby-list');
     list.innerHTML = players.map(p => `✅ ${p.name}`).join('<br>');
-    if (players.length >= 2) document.getElementById('start-game-btn').style.display = 'block';
+    // Botón visible solo para Host si hay >= 2 jugadores
+    if (players.length >= 2) {
+        document.getElementById('start-game-btn').style.display = 'block';
+    }
 }
 
 function hostStartGame() {
-    // Cancelar cualquier intervalo residual
     if (joinInterval) clearInterval(joinInterval);
     startGameUI(); 
     initGame(); 
@@ -296,7 +276,6 @@ function playCard(cardIndex) {
     }
 
     if (card.type === 'virus' || card.name === 'Ladrón' || (card.type === 'medicine')) {
-        // MEDICINAS AHORA TAMBIÉN REQUIEREN SELECCIÓN PARA PRECISIÓN (MULTICOLOR)
         enterSelectionMode(cardIndex, card);
         return; 
     }
@@ -473,7 +452,6 @@ function aiPlay() {
 // --- RENDER ---
 function render() {
     document.getElementById('deck-count').innerText = visualDeckCount;
-    
     const turnName = players[turnIndex] ? players[turnIndex].name : "...";
     document.getElementById('turn-indicator').innerHTML = `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
     notify(lastActionLog);
@@ -555,7 +533,6 @@ function renderBody(body, container, ownerIndex) {
         if (pendingAction) {
             const card = pendingAction.card;
             let isValid = false;
-            // Lógica de validación visual precisa para Órganos
             if (card.type === 'medicine') {
                 if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) isValid = true;
             } else if (card.type === 'virus') {
