@@ -21,8 +21,9 @@ let joinInterval = null;
 let hostBeaconInterval = null;
 let targetWins = 3; 
 
+// Configuración MQTT (Canal limpio para evitar caché)
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_8_1/'; // Canal ajustado a versión
+const TOPIC_PREFIX = 'virusgame/v3_8_2/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -34,7 +35,7 @@ const icons = {
 // --- MENÚ ---
 function startLocalGame() {
     let name = getCleanName();
-    if (!name) return alert("¡Debes poner tu nombre para jugar!"); // OBLIGATORIO
+    if (!name) return alert("¡Debes poner tu nombre para jugar!");
     
     stopNetwork();
     isMultiplayer = false; isHost = true;
@@ -110,7 +111,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v381_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v382_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -276,7 +277,12 @@ function applyGameState(content) {
 }
 
 function refillHand(player) {
+    // PROTECCIÓN CONTRA BUCLE INFINITO
+    let safetyCounter = 0;
     while (player.hand.length < 3) {
+        safetyCounter++;
+        if (safetyCounter > 100) break; // Break emergency
+
         if (deck.length === 0) {
             if (discardPile.length === 0) break;
             deck = discardPile.sort(() => Math.random() - 0.5);
@@ -287,7 +293,7 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- ACCIONES CON AUTO-SELECCIÓN ---
+// --- LÓGICA DE JUEGO INTELIGENTE ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -295,11 +301,11 @@ function playCard(cardIndex) {
 
     const card = players[myPlayerIndex].hand[cardIndex];
     
-    // 1. Automáticos Siempre
+    // 1. Automáticos
     if (card.type === 'organ') { submitMove(cardIndex, myPlayerIndex, card.color, null); return; }
     if (card.name === 'Guante de Látex') { submitMove(cardIndex, myPlayerIndex, null, null); return; }
     
-    // 2. Error Médico (Especial)
+    // 2. Error Médico
     if (card.name === 'Error Médico') {
         if (players.length === 2) {
             let targetIdx = (myPlayerIndex + 1) % 2;
@@ -310,29 +316,24 @@ function playCard(cardIndex) {
         return;
     }
 
-    // 3. CARTAS CON TARGET (Virus, Medicina, Ladrón, Contagio)
-    // Intentamos encontrar objetivos válidos automáticamente
+    // 3. Cartas con Puntería Automática (Si solo hay 1 opción, no pregunta)
     let possibleTargets = scanTargets(card);
 
     if (possibleTargets.length === 0) {
-        notify("⚠️ No hay objetivos válidos para esta carta");
+        notify("⚠️ No hay objetivos válidos");
         return;
     } 
     
     if (possibleTargets.length === 1) {
-        // ¡SOLO HAY UNA OPCIÓN! AUTO-JUGAR
         let t = possibleTargets[0];
         submitMove(cardIndex, t.pIdx, t.color, null);
     } else {
-        // HAY MÁS DE UNA -> SELECCIÓN MANUAL
         enterSelectionMode(cardIndex, card);
     }
 }
 
-// NUEVA FUNCIÓN: Analiza el tablero para ver si hay 1 o muchas opciones
 function scanTargets(card) {
-    let targets = []; // Array de {pIdx, color}
-
+    let targets = []; 
     // MEDICINA
     if (card.type === 'medicine') {
         players[myPlayerIndex].body.forEach(o => {
@@ -359,7 +360,6 @@ function scanTargets(card) {
             if (pIdx !== myPlayerIndex) {
                 p.body.forEach(o => {
                     if (o.vaccines < 2) {
-                        // Check if I don't have it
                         if (!players[myPlayerIndex].body.some(my => my.color === o.color)) {
                             targets.push({pIdx: pIdx, color: o.color});
                         }
@@ -370,15 +370,12 @@ function scanTargets(card) {
     }
     // CONTAGIO
     else if (card.name === 'Contagio') {
-        // Find my infected organs first
         let myInfected = players[myPlayerIndex].body.filter(o => o.infected);
         if (myInfected.length > 0) {
             players.forEach((p, pIdx) => {
                 if (pIdx !== myPlayerIndex) {
                     p.body.forEach(o => {
-                        // Target must be healthy, no vaccine
                         if (!o.infected && o.vaccines === 0) {
-                            // Check compatibility with ANY of my infected organs
                             if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
                                 targets.push({pIdx: pIdx, color: o.color});
                             }
@@ -388,14 +385,10 @@ function scanTargets(card) {
             });
         }
     }
-    // TRASPLANTE (Demasiado complejo para auto completo, pero podemos intentarlo)
-    // Para V3.8.1 lo dejaremos manual si hay dudas, porque son 2 pasos. 
-    // Si solo tengo 1 organo y rival 1 organo valido -> Auto? Mejor NO arriesgar en trasplante.
-    // Devolvemos >1 para forzar manual en trasplante.
+    // TRASPLANTE (Siempre manual por complejidad)
     else if (card.name === 'Trasplante') {
-        targets.push({}, {}); // Dummy data to force manual
+        targets.push({}, {}); 
     }
-
     return targets;
 }
 
@@ -470,7 +463,6 @@ function discardCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) return;
     
-    // Feedback inmediato visual
     notify("Descartando...");
     
     if (isMultiplayer && !isHost) {
@@ -499,7 +491,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     let success = false;
     let log = "";
 
-    // LOGICA CARTAS
     if (card.type === 'organ') {
         if (!target.body.find(o => o.color === card.color)) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
@@ -579,7 +570,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
         notify("⚠️ Jugada no válida en ese objetivo");
     } else if (players[pIdx].isBot) {
-        executeDiscard(pIdx, 0);
+        executeDiscard(pIdx, 0); // IA FALLBACK
     }
 }
 
@@ -636,6 +627,7 @@ function showRoundModal(winner) {
         btn.disabled = true;
         btn.style.background = "#95a5a6";
     }
+    
     modal.style.display = 'flex';
 }
 
@@ -653,15 +645,13 @@ function checkAiTurn() {
 
 function aiPlay() {
     const bot = players[turnIndex];
-    // Intenta jugar órgano
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
             executeMove(turnIndex, i, turnIndex, bot.hand[i].color, null);
             return;
         }
     }
-    // Fallback: Descartar
-    executeDiscard(turnIndex, 0);
+    executeDiscard(turnIndex, 0); // FALLBACK CRÍTICO PARA NO BLOQUEAR
 }
 
 // --- RENDER ---
@@ -821,8 +811,4 @@ function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMess
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
 function confirmMultiDiscard() { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.size === 0) { toggleMultiDiscardMode(); return; } let indices = Array.from(selectedForDiscard).sort((a,b)=>b-a); if(isMultiplayer && !isHost) sendData('MULTI_DISCARD', {playerIndex: myPlayerIndex, indices: indices}); else { const actor = players[myPlayerIndex]; indices.forEach(i => { discardPile.push(actor.hand[i]); actor.hand.splice(i,1); }); refillHand(actor); nextTurn(`${actor.name} descartó ${indices.length} cartas`); } multiDiscardMode = false; selectedForDiscard.clear(); }
-function confirmExit() {
-    if (confirm("⚠️ ¿Seguro que quieres salir?\n\nSe perderá la conexión y el progreso de la partida.")) {
-        location.reload();
-    }
-}
+function confirmExit() { if (confirm("⚠️ ¿Salir de la partida?")) location.reload(); }
