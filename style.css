@@ -51,7 +51,7 @@ body {
     transition: all 0.2s; position: relative;
 }
 
-/* IMPORTANTE: ESTILO DE TURNO ACTIVO */
+/* TURNO ACTIVO (VERDE FUERTE) */
 .active-turn { 
     border: 3px solid #2ecc71 !important; 
     background-color: rgba(46, 204, 113, 0.15) !important;
@@ -60,15 +60,16 @@ body {
     z-index: 5;
 }
 
-/* SELECCIÓN DE OBJETIVO */
-.selectable-target {
-    border: 3px dashed #3498db !important;
-    background-color: rgba(52, 152, 219, 0.3) !important;
+/* SELECCIÓN DE ÓRGANO (NUEVO) */
+.selectable-organ {
     cursor: pointer;
-    animation: pulseSelect 1.5s infinite;
+    animation: organPulse 1s infinite;
+    border: 3px solid #f1c40f !important;
+    transform: scale(1.1);
+    z-index: 50;
+    box-shadow: 0 0 10px #f1c40f;
 }
-.selectable-target:hover { background-color: rgba(52, 152, 219, 0.5) !important; }
-@keyframes pulseSelect { 0% { border-color: #3498db; } 50% { border-color: white; } 100% { border-color: #3498db; } }
+@keyframes organPulse { 0% { transform: scale(1.05); } 50% { transform: scale(1.15); } 100% { transform: scale(1.05); } }
 
 h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-shadow: 0 2px 2px black; }
 .body-slots { display: flex; gap: 4px; min-height: var(--card-h); justify-content: center; align-items: center; flex-wrap: wrap; width: 100%; padding: 5px; }
@@ -118,7 +119,5 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 
 @media (max-width: 500px) { 
     :root { --card-w: 62px; --card-h: 96px; } 
-    .discard-btn { display: none; } /* Ocultamos botones individuales en móvil si activamos multiselect */
-    /* Pero como el usuario quiere el botón, lo dejamos visible o lo ajustamos */
     .discard-btn { display: block; font-size: 0.6rem; padding: 2px 6px; }
 }
