@@ -21,9 +21,8 @@ let joinInterval = null;
 let hostBeaconInterval = null;
 let targetWins = 3; 
 
-// Configuración MQTT (Canal limpio para evitar caché)
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_8_2/'; 
+const TOPIC_PREFIX = 'virusgame/v3_8_3/'; // Canal actualizado
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -53,10 +52,14 @@ function startLocalGame() {
 function showMultiplayerOptions() {
     if(!getCleanName()) return alert("¡Escribe tu nombre!");
     document.getElementById('mp-options').style.display = 'block';
+    // Ocultar botones principales al entrar en multiplayer
+    document.querySelector('.btn-orange-glow').style.display = 'none';
+    document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
+    document.querySelector('.meta-container').style.display = 'none';
 }
 
 function joinRoomUI() {
-    document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
+    document.querySelector('.mp-grid').style.display = 'none';
     document.getElementById('join-input-area').style.display = 'block';
 }
 
@@ -90,7 +93,7 @@ function createRoom() {
     roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     document.getElementById('my-code').innerText = roomCode;
     document.getElementById('room-code-display').style.display = 'block';
-    document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
+    document.querySelector('.mp-grid').style.display = 'none';
     
     isHost = true; isMultiplayer = true;
     const name = getCleanName();
@@ -111,7 +114,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v382_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v383_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -244,8 +247,10 @@ function initGame() {
         visualDeckCount = deck.length; 
         
         if(isHost) {
-            let e = document.getElementById('target-wins');
+            // --- CAMBIO AQUÍ: Leemos el nuevo ID del selector de meta en el menú principal ---
+            let e = document.getElementById('target-wins-main');
             if(e) targetWins = parseInt(e.value) || 3;
+            // -------------------------------------------------------------------------------
             broadcastState('GAME_START');
             checkAiTurn();
         }
@@ -277,12 +282,10 @@ function applyGameState(content) {
 }
 
 function refillHand(player) {
-    // PROTECCIÓN CONTRA BUCLE INFINITO
     let safetyCounter = 0;
     while (player.hand.length < 3) {
         safetyCounter++;
-        if (safetyCounter > 100) break; // Break emergency
-
+        if (safetyCounter > 100) break; 
         if (deck.length === 0) {
             if (discardPile.length === 0) break;
             deck = discardPile.sort(() => Math.random() - 0.5);
@@ -293,7 +296,7 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- LÓGICA DE JUEGO INTELIGENTE ---
+// --- LÓGICA ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -301,11 +304,9 @@ function playCard(cardIndex) {
 
     const card = players[myPlayerIndex].hand[cardIndex];
     
-    // 1. Automáticos
     if (card.type === 'organ') { submitMove(cardIndex, myPlayerIndex, card.color, null); return; }
     if (card.name === 'Guante de Látex') { submitMove(cardIndex, myPlayerIndex, null, null); return; }
     
-    // 2. Error Médico
     if (card.name === 'Error Médico') {
         if (players.length === 2) {
             let targetIdx = (myPlayerIndex + 1) % 2;
@@ -316,9 +317,7 @@ function playCard(cardIndex) {
         return;
     }
 
-    // 3. Cartas con Puntería Automática (Si solo hay 1 opción, no pregunta)
     let possibleTargets = scanTargets(card);
-
     if (possibleTargets.length === 0) {
         notify("⚠️ No hay objetivos válidos");
         return;
@@ -334,7 +333,6 @@ function playCard(cardIndex) {
 
 function scanTargets(card) {
     let targets = []; 
-    // MEDICINA
     if (card.type === 'medicine') {
         players[myPlayerIndex].body.forEach(o => {
             if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) {
@@ -342,7 +340,6 @@ function scanTargets(card) {
             }
         });
     }
-    // VIRUS
     else if (card.type === 'virus') {
         players.forEach((p, pIdx) => {
             if (pIdx !== myPlayerIndex) {
@@ -354,7 +351,6 @@ function scanTargets(card) {
             }
         });
     }
-    // LADRÓN
     else if (card.name === 'Ladrón') {
         players.forEach((p, pIdx) => {
             if (pIdx !== myPlayerIndex) {
@@ -368,7 +364,6 @@ function scanTargets(card) {
             }
         });
     }
-    // CONTAGIO
     else if (card.name === 'Contagio') {
         let myInfected = players[myPlayerIndex].body.filter(o => o.infected);
         if (myInfected.length > 0) {
@@ -385,7 +380,6 @@ function scanTargets(card) {
             });
         }
     }
-    // TRASPLANTE (Siempre manual por complejidad)
     else if (card.name === 'Trasplante') {
         targets.push({}, {}); 
     }
@@ -570,7 +564,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
         notify("⚠️ Jugada no válida en ese objetivo");
     } else if (players[pIdx].isBot) {
-        executeDiscard(pIdx, 0); // IA FALLBACK
+        executeDiscard(pIdx, 0);
     }
 }
 
@@ -627,7 +621,6 @@ function showRoundModal(winner) {
         btn.disabled = true;
         btn.style.background = "#95a5a6";
     }
-    
     modal.style.display = 'flex';
 }
 
@@ -651,7 +644,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0); // FALLBACK CRÍTICO PARA NO BLOQUEAR
+    executeDiscard(turnIndex, 0);
 }
 
 // --- RENDER ---
