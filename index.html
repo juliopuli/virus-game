@@ -15,6 +15,7 @@
         <div class="menu-box">
             <h1>VIRUS!</h1>
             <input type="text" id="username" placeholder="Tu Nombre" class="name-input">
+            
             <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Local)</button>
             <div class="divider"></div>
             <button onclick="showMultiplayerOptions()" class="menu-btn">👥 Multiplayer (Online)</button>
@@ -26,10 +27,12 @@
                 <div id="room-code-display" style="display:none;">
                     <p>CÓDIGO:</p>
                     <h2 id="my-code">...</h2>
-                    <div id="lobby-list" style="margin:10px 0; font-size:0.9rem; color:#f1c40f;">
+                    
+                    <div id="lobby-list" style="margin:15px 0; font-size:1rem; color:#f1c40f; min-height: 20px;">
                         Esperando jugadores...
                     </div>
-                    <button id="start-game-btn" onclick="hostStartGame()" class="confirm-btn" style="display:none; background:#e74c3c; margin-top:10px; width:100%;">
+
+                    <button id="start-game-btn" onclick="hostStartGame()" class="confirm-btn" style="display:none; background:#e74c3c; margin-top:15px; width:100%; box-shadow: 0 0 10px #e74c3c;">
                         ¡EMPEZAR PARTIDA!
                     </button>
                 </div>
@@ -39,12 +42,12 @@
                     <button onclick="connectToPeer()" class="confirm-btn">Entrar</button>
                 </div>
             </div>
-            <p id="connection-status"></p>
+            <p id="connection-status" style="margin-top: 10px; color: #ccc; font-size: 0.8rem;"></p>
         </div>
-        <div class="version-menu">V.3.1.3</div>
     </div>
 
     <button id="chat-btn" onclick="toggleChat()" style="display:none;">💬 <span id="chat-badge" style="display:none;">●</span></button>
+    
     <div id="chat-modal" style="display:none;">
         <div class="chat-content">
             <div class="chat-header"><h3>Chat</h3><button onclick="toggleChat()">✖</button></div>
@@ -63,7 +66,13 @@
 
         <div id="deck-area">
             <div id="dynamic-controls"></div>
-            <div class="deck-info"><div class="card deck-visual"><span id="deck-count">0</span></div></div>
+            
+            <div class="deck-info">
+                <div class="card deck-visual">
+                    <span id="deck-count">0</span>
+                </div>
+            </div>
+            
             <button onclick="location.reload()" id="restart-btn" style="display:none">Salir</button>
         </div>
 
@@ -74,9 +83,8 @@
         </div>
     </div>
     
-    <div class="version-display">V.3.3</div>
+    <div class="version-display">V.3.3.1</div>
+
     <script src="script.js"></script>
 </body>
 </html>
-
-
