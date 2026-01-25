@@ -4,8 +4,8 @@
     --accent-blue: #3498db;
     --accent-red: #e74c3c;
     --accent-green: #2ecc71;
-    --card-w: 75px; /* Un poco más pequeñas para que quepan 4 */
-    --card-h: 110px;
+    --card-w: 70px; 
+    --card-h: 105px;
 }
 
 * { box-sizing: border-box; }
@@ -36,27 +36,38 @@ body {
 .confirm-btn { width: 100%; padding: 10px; background: var(--accent-green); border: none; border-radius: 5px; font-weight: bold; }
 .blurred { filter: blur(5px); pointer-events: none; }
 
-/* JUEGO */
+/* JUEGO Y TABLERO */
 #game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 8px; margin: auto; }
 #scoreboard-area { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 5px 10px; border-radius: 12px; }
 .scores-display { display: flex; gap: 10px; font-size: 0.8rem; font-weight: bold; }
 #notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; }
 
-/* ÁREA DE RIVALES (GRID) */
-#rivals-container {
-    display: grid; 
-    gap: 5px;
-    width: 100%;
-    /* Se ajustará por JS según número de jugadores */
-}
+/* GRID DE RIVALES */
+#rivals-container { display: grid; gap: 5px; width: 100%; transition: 0.3s; }
 
 .board-section { 
     background: rgba(0, 0, 0, 0.25); padding: 5px; border-radius: 12px; 
     border: 2px solid rgba(255,255,255,0.05); display: flex; flex-direction: column; align-items: center; 
-    transition: all 0.3s;
+    transition: all 0.3s; position: relative;
 }
-.active-turn { background-color: rgba(46, 204, 113, 0.15) !important; border-color: #2ecc71 !important; box-shadow: 0 0 10px rgba(46,204,113,0.3); }
-.waiting-turn { opacity: 0.8; }
+
+/* INDICADORES DE TURNO Y SELECCIÓN */
+.active-turn { 
+    border: 2px solid #2ecc71 !important; 
+    background-color: rgba(46, 204, 113, 0.1) !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
+}
+.waiting-turn { opacity: 0.9; }
+
+/* MODO SELECCIÓN DE OBJETIVO */
+.selectable-target {
+    border: 2px dashed #3498db !important;
+    background-color: rgba(52, 152, 219, 0.2) !important;
+    cursor: pointer;
+    animation: pulseSelect 1s infinite;
+}
+.selectable-target:hover { background-color: rgba(52, 152, 219, 0.4) !important; }
+@keyframes pulseSelect { 0% { transform: scale(1); } 50% { transform: scale(1.02); } 100% { transform: scale(1); } }
 
 h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .body-slots { display: flex; gap: 4px; min-height: var(--card-h); justify-content: center; align-items: center; flex-wrap: wrap; width: 100%; }
@@ -64,7 +75,7 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 
 /* MAZO */
 #deck-area { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 5px; }
-.deck-visual { background: linear-gradient(135deg, #2c3e50, #1a252f) !important; border: 2px solid white !important; color: white !important; transform: rotate(-2deg); height: 90px; width: 60px; }
+.deck-visual { background: linear-gradient(135deg, #2c3e50, #1a252f) !important; border: 2px solid white !important; color: white !important; transform: rotate(-2deg); height: 90px; width: 60px; display: flex; justify-content: center; align-items: center; }
 #deck-count { font-size: 16px; font-weight: 800; }
 
 /* CARTAS */
@@ -82,9 +93,10 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 /* BOTONES */
 .discard-btn { background: rgba(255,255,255,0.1); color: #ccc; border: none; padding: 4px 8px; border-radius: 20px; cursor: pointer; font-size: 0.7rem; }
 .discard-btn:hover { background: #e74c3c; color: white; }
+.discard-btn.active { background: #2ecc71; color: white; }
 .toggle-mode-btn, #restart-btn { padding: 6px 12px; border-radius: 8px; border: 1px solid white; background: transparent; color: white; font-size: 0.8rem; }
 .main-action-btn { padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 20px; font-weight: bold; font-size: 0.8rem; }
-.cancel-btn { background: none; border: none; color: #ccc; text-decoration: underline; font-size: 0.8rem; }
+.cancel-btn { background: none; border: none; color: #ccc; text-decoration: underline; font-size: 0.8rem; margin-left: 5px;}
 
 /* CHAT */
 #chat-btn { position: fixed; top: 10px; left: 10px; z-index: 1500; background: #2c3e50; border: 2px solid #fff; color: white; border-radius: 50%; width: 40px; height: 40px; font-size: 1.2rem; cursor: pointer; display: flex; justify-content: center; align-items: center; }
@@ -97,9 +109,10 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 #chat-input { flex-grow: 1; padding: 8px; border-radius: 5px; border: none; }
 .chat-msg { margin: 2px 0; word-wrap: break-word; }
 .chat-msg b { color: #3498db; }
+.chat-msg.me b { color: #2ecc71; }
 
+.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.6; font-family: monospace; color: #ecf0f1; pointer-events: none;}
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
-.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.6rem; opacity: 0.5; font-family: monospace; }
 
 @media (max-width: 500px) { 
     :root { --card-w: 60px; --card-h: 90px; } 
