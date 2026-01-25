@@ -19,7 +19,7 @@ let visualDeckCount = 0;
 
 // Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_1/'; // Nuevo canal para evitar caché vieja
+const TOPIC_PREFIX = 'virusgame/v3_1_3/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -87,7 +87,6 @@ function createRoom() {
 function connectToPeer() {
     const code = document.getElementById('remote-code-input').value;
     if (!code) return alert("Falta código");
-    
     isHost = false; isMultiplayer = true;
     roomCode = code;
     connectMqtt();
@@ -156,10 +155,8 @@ function handleNetworkData(data) {
         processPlayerAction(data);
     }
 
-    // ARREGLO CHAT DOBLE
     if (data.type === 'CHAT') {
-        // Solo añado el mensaje si NO soy yo quien lo envió (porque ya lo añadí localmente)
-        if (data.content.senderIdx !== myPlayerIndex) {
+        if (data.content.name !== document.getElementById('username').value) {
             addChatMessage(data.content.name, data.content.msg);
         }
     }
@@ -242,20 +239,13 @@ function refillHand(player) {
 
 // --- ACCIONES ---
 function playCard(cardIndex) {
-    // 1. MODO SELECCIÓN MULTIDESCARTE (Arreglado)
-    if (multiDiscardMode) {
-        toggleSelection(cardIndex);
-        return;
-    }
-
+    if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
     if (pendingAction) { cancelSelectionMode(); return; }
 
     const card = players[myPlayerIndex].hand[cardIndex];
     let targetIndex = myPlayerIndex; 
 
-    // 2. LÓGICA DE LADRÓN / MULTICOLOR / VIRUS (Arreglado)
-    // Si es Virus, Ladrón O Medicina Multicolor -> Elegir objetivo
     if (card.type === 'virus' || card.name === 'Ladrón' || (card.type === 'medicine' && card.color === 'multicolor')) {
         enterSelectionMode(cardIndex, card.type);
         return; 
@@ -330,14 +320,16 @@ function executeMove(pIdx, cIdx, tIdx) {
             success = true; log = `${actor.name} sacó ${card.color}`;
         }
     } else if (card.type === 'medicine') {
-        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor') && (x.infected || x.vaccines < 2));
+        // MEDICINA: Permite curar si coincide color, si la medicina es multi, o si el organo es multi
+        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor' || x.color === 'multicolor') && (x.infected || x.vaccines < 2));
         if (o) {
             if (o.infected) { o.infected = false; log = `${actor.name} curó a ${target.name}`; }
             else { o.vaccines++; log = `${actor.name} vacunó a ${target.name}`; }
             success = true;
         }
     } else if (card.type === 'virus') {
-        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor') && x.vaccines < 2);
+        // VIRUS: Infecta si coincide color, si el virus es multi, O SI EL ORGANO ES MULTI (Nueva corrección)
+        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor' || x.color === 'multicolor') && x.vaccines < 2);
         if (o) {
             if (o.vaccines > 0) { o.vaccines--; log = `${actor.name} infectó vacuna de ${target.name}`; }
             else if (!o.infected) { o.infected = true; log = `${actor.name} infectó a ${target.name}`; }
@@ -376,7 +368,7 @@ function executeMove(pIdx, cIdx, tIdx) {
     if (success) {
         discardPile.push(card);
         actor.hand.splice(cIdx, 1);
-        refillHand(actor);
+        refillHand(actor); 
         nextTurn(log);
     } else if (pIdx === myPlayerIndex) {
         notify("⚠️ Jugada no válida en ese objetivo");
@@ -451,7 +443,6 @@ function render() {
             const pIndex = players.indexOf(p);
             const div = document.createElement('div');
             
-            // LÓGICA DE FOCO ARREGLADA
             let classes = `board-section`;
             if (turnIndex === pIndex) classes += ' active-turn';
             else classes += ' waiting-turn';
@@ -484,11 +475,9 @@ function render() {
             let isPending = (pendingAction && pendingAction.cardIndex === i);
             
             cardDiv.className = `card ${c.color||'treatment'} ${isSelected?'selected-discard':''} ${isPending?'active-turn':''}`;
-            // AQUÍ LLAMAMOS A playCard QUE AHORA GESTIONA EL CLIC DE SELECCIÓN
             cardDiv.onclick = () => playCard(i);
             cardDiv.innerHTML = `${icons[c.type]||icons.treatment}<b>${c.name||c.type}</b>`;
             
-            // Botón extra (mantenemos por si acaso, pero el clic en carta ya sirve)
             const btn = document.createElement('button');
             if (multiDiscardMode) {
                 btn.className = isSelected ? 'discard-btn active' : 'discard-btn';
@@ -502,16 +491,18 @@ function render() {
             container.appendChild(cardDiv); container.appendChild(btn); handDiv.appendChild(container);
         });
 
-        // BORDE VERDE PARA MI TABLERO
-        const mySection = document.querySelector('.board-section:last-of-type');
-        let myClasses = 'board-section';
-        if (turnIndex === myPlayerIndex) myClasses += ' active-turn';
-        else myClasses += ' waiting-turn';
+        // BORDE VERDE PARA MI TABLERO (Con ID específico)
+        const mySection = document.getElementById('my-board-section'); // USA EL ID NUEVO
+        if (mySection) {
+            let myClasses = 'board-section';
+            if (turnIndex === myPlayerIndex) myClasses += ' active-turn';
+            else myClasses += ' waiting-turn';
+            
+            if (pendingAction && pendingAction.type === 'medicine') myClasses += ' selectable-target'; 
+            mySection.className = myClasses;
+        }
         
-        if (pendingAction && pendingAction.type === 'medicine') myClasses += ' selectable-target'; 
-        mySection.className = myClasses;
-        
-        // CONTROLES MULTIDESCARTE (Botón siempre visible)
+        // CONTROLES MULTIDESCARTE
         const controls = document.getElementById('dynamic-controls');
         controls.innerHTML = '';
         if (!multiDiscardMode) {
@@ -559,10 +550,8 @@ function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const msg = input.value.trim();
     if(msg) {
-        // Enviar por red
-        if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg });
-        // Añadir localmente siempre
         addChatMessage(players[myPlayerIndex].name, msg);
+        if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg });
         input.value = '';
     }
 }
