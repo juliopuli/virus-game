@@ -22,7 +22,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_7/'; 
+const TOPIC_PREFIX = 'virusgame/v3_8/'; // Canal V3.8
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -82,16 +82,18 @@ function stopNetwork() {
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
 }
 
-// --- RED ---
+// --- RED (MQTT) ---
 function createRoom() {
     roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     document.getElementById('my-code').innerText = roomCode;
     document.getElementById('room-code-display').style.display = 'block';
     document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
+    
     isHost = true; isMultiplayer = true;
     const name = getCleanName();
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     myPlayerIndex = 0;
+    
     updateLobbyUI();
     connectMqtt();
 }
@@ -106,7 +108,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v37_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v38_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -177,7 +179,7 @@ function handleNetworkData(data) {
 
     if (data.type === 'GAME_START') {
         if (!isHost && joinInterval) clearInterval(joinInterval);
-        document.getElementById('round-modal').style.display = 'none'; // Cerrar modal si estaba abierto
+        document.getElementById('round-modal').style.display = 'none'; 
         applyGameState(data.content);
         const myName = getCleanName();
         myPlayerIndex = players.findIndex(p => p.name === myName);
@@ -191,10 +193,10 @@ function handleNetworkData(data) {
         processPlayerAction(data);
     }
 
-    // CHAT DUPLICADO FIX: Comparamos nombres
+    // --- FIX CHAT DUPLICADO ---
     if (data.type === 'CHAT') {
-        const myName = (players[myPlayerIndex]) ? players[myPlayerIndex].name : getCleanName();
-        if (data.content.senderName !== myName) {
+        // Usamos data.senderIdx que viene en la raíz del paquete
+        if (data.senderIdx !== myPlayerIndex) {
             addChatMessage(data.content.name, data.content.msg);
         }
     }
@@ -220,7 +222,7 @@ function hostStartGame() {
 
 // --- JUEGO ---
 function initGame() {
-    if(deck.length === 0) { // Solo si reiniciamos
+    if(deck.length === 0) {
         deck = []; discardPile = [];
         colors.forEach(c => {
             for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
@@ -240,7 +242,12 @@ function initGame() {
         lastActionLog = "¡Empieza la partida!";
         visualDeckCount = deck.length; 
         
-        if(isHost) checkAiTurn();
+        if(isHost) {
+            let e = document.getElementById('target-wins');
+            if(e) targetWins = parseInt(e.value) || 3;
+            broadcastState('GAME_START');
+            checkAiTurn();
+        }
     }
     render();
 }
@@ -288,14 +295,11 @@ function playCard(cardIndex) {
 
     const card = players[myPlayerIndex].hand[cardIndex];
     
-    // ERROR MÉDICO
     if (card.name === 'Error Médico') {
         if (players.length === 2) {
-            // Intercambio automático con el único rival
             let targetIdx = (myPlayerIndex + 1) % 2;
             submitMove(cardIndex, targetIdx, null, null);
         } else {
-            // Seleccionar jugador
             enterSelectionMode(cardIndex, card);
         }
         return;
@@ -311,7 +315,6 @@ function playCard(cardIndex) {
         return;
     }
 
-    // Resto requieren selección de órgano
     enterSelectionMode(cardIndex, card);
 }
 
@@ -333,7 +336,6 @@ function cancelSelectionMode() {
     render();
 }
 
-// Click en el jugador (para Error Médico en >2 players)
 function handleBoardClick(targetPlayerIndex) {
     if (!pendingAction) return;
     const card = pendingAction.card;
@@ -346,7 +348,6 @@ function handleBoardClick(targetPlayerIndex) {
     }
 }
 
-// Click en un órgano
 function handleOrganClick(targetPlayerIndex, organColor) {
     if (!pendingAction) return;
     const card = pendingAction.card;
@@ -388,6 +389,9 @@ function discardCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) return;
     
+    // Feedback inmediato
+    notify("Descartando...");
+    
     if (isMultiplayer && !isHost) {
         sendData('DISCARD', { playerIndex: myPlayerIndex, cardIndex: cardIndex });
     } else {
@@ -407,7 +411,6 @@ function processPlayerAction(data) {
     }
 }
 
-// --- EJECUCIÓN ---
 function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     const actor = players[pIdx];
     const target = players[tIdx];
@@ -415,7 +418,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     let success = false;
     let log = "";
 
-    // LOGICA CARTAS
     if (card.type === 'organ') {
         if (!target.body.find(o => o.color === card.color)) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
@@ -500,7 +502,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
 function nextTurn(log) {
     lastActionLog = log;
     turnIndex = (turnIndex + 1) % players.length;
-    
     let winner = null;
     players.forEach(p => {
         let healthy = p.body.filter(o => !o.infected).length;
@@ -511,7 +512,7 @@ function nextTurn(log) {
         winner.wins++;
         lastActionLog = `🏆 ¡${winner.name} GANA!`;
         broadcastState(); 
-        showRoundModal(winner); // MOSTRAR MODAL EN VEZ DE RESET
+        showRoundModal(winner); 
     } else {
         broadcastState();
         render();
@@ -588,7 +589,6 @@ function render() {
             let classes = `board-section`;
             if (turnIndex === pIndex) classes += ' active-turn';
             
-            // Si es Error Médico, permite seleccionar al jugador entero
             if (pendingAction && pendingAction.card.name === 'Error Médico') {
                 classes += ' selectable-player';
                 div.onclick = () => handleBoardClick(pIndex);
@@ -622,7 +622,6 @@ function render() {
             const btn = document.createElement('button');
             if (multiDiscardMode) {
                 if (turnIndex !== myPlayerIndex) {
-                    // Si no es mi turno, no mostrar botones de descarte o deshabilitarlos
                     btn.style.display = 'none';
                 } else {
                     btn.className = isSelected ? 'discard-btn active' : 'discard-btn';
@@ -700,6 +699,8 @@ function renderBody(body, container, ownerIndex) {
                 } else {
                     if (ownerIndex !== myPlayerIndex && o.vaccines < 2) isValid = true; 
                 }
+            } else if (card.name === 'Error Médico') {
+                if (ownerIndex !== myPlayerIndex) isValid = true;
             }
 
             if (isValid) {
