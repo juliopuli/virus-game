@@ -3,7 +3,6 @@
     --text-color: #ecf0f1;
     --card-w: 70px; 
     --card-h: 105px;
-    /* Nuevos colores para el menú moderno */
     --neon-blue: #3498db;
     --neon-orange: #e67e22;
     --bg-menu-dark: #1a2530;
@@ -12,10 +11,9 @@
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body { 
-    /* Mantenemos el fondo radial que queda muy bien con el nuevo menú */
     background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%); 
     color: var(--text-color); 
-    font-family: 'Segoe UI', Roboto, Montserrat, Arial, sans-serif; /* Fuente más moderna */
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0; padding: 10px;
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 40px); 
@@ -23,84 +21,56 @@ body {
     min-height: 100vh; overflow-y: auto; overflow-x: hidden;
 }
 
-/* --- NUEVO MENÚ MODERNO --- */
-#main-menu { 
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-    background: rgba(10, 20, 30, 0.95); /* Fondo más oscuro */
-    z-index: 2000; display: flex; flex-direction: column; 
-    justify-content: center; align-items: center; 
-    backdrop-filter: blur(8px); gap: 25px;
+/* --- SISTEMA DE LICENCIAS --- */
+#license-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(10, 15, 20, 0.98); 
+    z-index: 9999; display: none; justify-content: center; align-items: center; flex-direction: column;
+    backdrop-filter: blur(10px);
+}
+.license-box {
+    background: linear-gradient(145deg, #2c3e50, #000);
+    padding: 40px; border-radius: 20px; text-align: center;
+    border: 2px solid #e74c3c; box-shadow: 0 0 50px rgba(231, 76, 60, 0.2);
+    max-width: 90%; width: 400px;
+}
+.license-icon { font-size: 4rem; margin-bottom: 20px; animation: float 3s infinite ease-in-out; }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+.license-box h2 { color: #e74c3c; margin: 0 0 10px 0; font-size: 2rem; text-transform: uppercase; letter-spacing: 2px; }
+.license-box p { color: #ccc; font-size: 1rem; margin-bottom: 25px; line-height: 1.5; }
+.license-input {
+    width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #555;
+    background: #1a1a1a; color: white; font-size: 1.2rem; text-align: center; letter-spacing: 3px;
+    margin-bottom: 15px; outline: none; text-transform: uppercase;
+}
+.license-input:focus { border-color: #2ecc71; }
+.license-btn {
+    width: 100%; padding: 15px; border-radius: 10px; border: none;
+    background: #27ae60; color: white; font-weight: bold; font-size: 1.1rem;
+    cursor: pointer; transition: 0.3s;
+}
+.license-btn:hover { background: #2ecc71; box-shadow: 0 0 15px #2ecc71; }
+.trial-info {
+    position: fixed; bottom: 10px; right: 10px;
+    background: rgba(0,0,0,0.6); color: rgba(255,255,255,0.5);
+    padding: 5px 10px; border-radius: 5px; font-size: 0.7rem;
+    pointer-events: none; z-index: 1000;
 }
 
-/* Título Principal */
-.game-title {
-    font-size: 4.5rem; line-height: 0.9; font-weight: 900; color: white;
-    text-transform: uppercase; text-align: center;
-    text-shadow: 0 0 15px rgba(52, 152, 219, 0.8); /* Glow azul */
-    margin-bottom: 10px;
-}
-.title-virus {
-    color: var(--neon-orange);
-    text-shadow: 0 0 15px rgba(230, 126, 34, 0.8); /* Glow naranja */
-    display: block; /* En nueva línea */
-}
-
-/* Contenedor Principal del Menú con Borde Naranja Brillante */
-.menu-box-modern {
-    background: var(--bg-menu-dark);
-    border: 3px solid var(--neon-orange);
-    box-shadow: 0 0 30px rgba(230, 126, 34, 0.4), inset 0 0 30px rgba(230, 126, 34, 0.1);
-    padding: 35px 25px; border-radius: 30px;
-    width: 90%; max-width: 420px;
-    display: flex; flex-direction: column; gap: 18px; text-align: center;
-}
-
-/* Estilos Generales de Inputs y Botones Modernos */
-.modern-input, .modern-btn, .modern-select-container select {
-    width: 100%; padding: 16px; border-radius: 18px;
-    font-size: 1.15rem; font-weight: bold; color: white;
-    border: 2px solid var(--neon-blue);
-    background: rgba(26, 37, 48, 0.8);
-    box-shadow: 0 0 15px rgba(52, 152, 219, 0.25);
-    transition: all 0.2s ease; outline: none;
-    text-align: center;
-}
-
-/* Input de Nombre */
+/* --- MENÚ MODERNO --- */
+#main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 20, 30, 0.95); z-index: 2000; display: flex; flex-direction: column; justify-content: center; align-items: center; backdrop-filter: blur(8px); gap: 25px; }
+.game-title { font-size: 4.5rem; line-height: 0.9; font-weight: 900; color: white; text-transform: uppercase; text-align: center; text-shadow: 0 0 15px rgba(52, 152, 219, 0.8); margin-bottom: 10px; }
+.title-virus { color: var(--neon-orange); text-shadow: 0 0 15px rgba(230, 126, 34, 0.8); display: block; }
+.menu-box-modern { background: var(--bg-menu-dark); border: 3px solid var(--neon-orange); box-shadow: 0 0 30px rgba(230, 126, 34, 0.4), inset 0 0 30px rgba(230, 126, 34, 0.1); padding: 35px 25px; border-radius: 30px; width: 90%; max-width: 420px; display: flex; flex-direction: column; gap: 18px; text-align: center; }
+.modern-input, .modern-btn, .modern-select-container select { width: 100%; padding: 16px; border-radius: 18px; font-size: 1.15rem; font-weight: bold; color: white; border: 2px solid var(--neon-blue); background: rgba(26, 37, 48, 0.8); box-shadow: 0 0 15px rgba(52, 152, 219, 0.25); transition: all 0.2s ease; outline: none; text-align: center; -webkit-user-select: text; user-select: text; }
 .modern-input::placeholder { color: rgba(255,255,255,0.5); }
 .modern-input:focus { box-shadow: 0 0 25px rgba(52, 152, 219, 0.5); border-color: #5dade2; }
-
-/* Botones Azules (Por defecto) */
 .modern-btn { cursor: pointer; }
 .modern-btn:active { transform: scale(0.98); background: rgba(52, 152, 219, 0.2); }
-
-/* Botón Naranja Destacado (Local) */
-.btn-orange-glow {
-    background: linear-gradient(135deg, #e67e22, #d35400) !important;
-    border: 2px solid #f39c12 !important;
-    box-shadow: 0 0 25px rgba(230, 126, 34, 0.6) !important;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-}
-.btn-orange-glow:active { transform: scale(0.98); box-shadow: 0 0 10px rgba(230, 126, 34, 0.8) !important;}
-
-/* Selector de Meta */
-.meta-container {
-    display: flex; justify-content: center; align-items: center; gap: 10px;
-    font-size: 1.3rem; font-weight: bold; color: white; margin-top: 5px;
-}
+.btn-orange-glow { background: linear-gradient(135deg, #e67e22, #d35400) !important; border: 2px solid #f39c12 !important; box-shadow: 0 0 25px rgba(230, 126, 34, 0.6) !important; text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
+.meta-container { display: flex; justify-content: center; align-items: center; gap: 10px; font-size: 1.3rem; font-weight: bold; color: white; margin-top: 5px; }
 .modern-select-container select { width: auto; padding: 10px 25px; cursor: pointer; appearance: none; -webkit-appearance: none; background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e"); background-repeat: no-repeat; background-position: right 10px center; background-size: 1em; padding-right: 35px;}
-
-/* Footer Profesional */
-.menu-footer-styled {
-    background: var(--bg-menu-dark);
-    border: 2px solid var(--neon-blue);
-    box-shadow: 0 0 20px rgba(52, 152, 219, 0.4);
-    padding: 12px 40px; border-radius: 25px;
-    font-weight: bold; color: white; font-size: 0.95rem;
-    display: flex; align-items: center; gap: 12px;
-}
-
-/* Submenú Multijugador (Adaptado al nuevo estilo) */
+.menu-footer-styled { background: var(--bg-menu-dark); border: 2px solid var(--neon-blue); box-shadow: 0 0 20px rgba(52, 152, 219, 0.4); padding: 12px 40px; border-radius: 25px; font-weight: bold; color: white; font-size: 0.95rem; display: flex; align-items: center; gap: 12px; }
 #mp-options { animation: fadeIn 0.3s ease; }
 @keyframes fadeIn { from { opacity:0; transform: translateY(-10px);} to { opacity:1; transform: translateY(0);} }
 .mp-grid { display: flex; gap: 10px; }
@@ -108,11 +78,9 @@ body {
 #room-code-display h2 { font-family: monospace; font-size: 2.5rem; margin: 10px 0; color: var(--neon-orange); text-shadow: 0 0 10px var(--neon-orange); }
 #lobby-list { color: var(--neon-blue); }
 
-/* --- FIN NUEVO MENÚ --- */
-
 .blurred { filter: blur(8px); pointer-events: none; transition: filter 0.5s; }
 
-/* JUEGO Y DEMÁS ELEMENTOS (Sin cambios mayores) */
+/* JUEGO */
 #game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 10px; margin: auto; }
 #scoreboard-area { display: flex; justify-content: center; gap: 8px; padding: 5px; width: 100%; flex-wrap: wrap; }
 .score-card { background: rgba(0,0,0,0.5); border-radius: 8px; padding: 5px 10px; display: flex; flex-direction: column; align-items: center; min-width: 70px; border-top: 3px solid transparent; transition: all 0.3s; flex-grow: 1; }
@@ -171,5 +139,6 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .round-content h2 { color: #f1c40f; font-size: 2rem; margin: 0 0 10px 0; }
 .round-content p { font-size: 1.2rem; color: white; margin: 20px 0; }
 .round-content button { padding: 15px 30px; font-size: 1.1rem; border-radius: 12px; background: #2ecc71; color: #2c3e50; font-weight: 800; border: none; cursor: pointer; width: 100%; box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4); }
-.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.8rem; opacity: 0.7; font-family: monospace; color: white; pointer-events: none; z-index: 3000; text-shadow: 0 0 5px black;}
+.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
+.powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 @media (max-width: 500px) { :root { --card-w: 62px; --card-h: 96px; } .discard-btn { display: block; font-size: 0.6rem; padding: 4px 8px; } }
