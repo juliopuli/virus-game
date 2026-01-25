@@ -22,7 +22,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_8/'; // Canal V3.8
+const TOPIC_PREFIX = 'virusgame/v3_9/'; // Canal V3.9
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -108,7 +108,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v38_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v39_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -193,12 +193,9 @@ function handleNetworkData(data) {
         processPlayerAction(data);
     }
 
-    // --- FIX CHAT DUPLICADO ---
     if (data.type === 'CHAT') {
-        // Usamos data.senderIdx que viene en la raíz del paquete
-        if (data.senderIdx !== myPlayerIndex) {
-            addChatMessage(data.content.name, data.content.msg);
-        }
+        // CORRECCIÓN CHAT: Solo mostramos lo que viene del servidor
+        addChatMessage(data.content.name, data.content.msg);
     }
 }
 
@@ -389,7 +386,6 @@ function discardCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) return;
     
-    // Feedback inmediato
     notify("Descartando...");
     
     if (isMultiplayer && !isHost) {
@@ -418,6 +414,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     let success = false;
     let log = "";
 
+    // LOGICA CARTAS
     if (card.type === 'organ') {
         if (!target.body.find(o => o.color === card.color)) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
@@ -494,9 +491,21 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
         actor.hand.splice(cIdx, 1);
         refillHand(actor); 
         nextTurn(log);
-    } else if (pIdx === myPlayerIndex) {
+    } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
+        // Solo avisar si es humano
         notify("⚠️ Jugada no válida en ese objetivo");
+    } else if (players[pIdx].isBot) {
+        // Fallback para Bot si falla la lógica
+        executeDiscard(pIdx, 0);
     }
+}
+
+function executeDiscard(pIdx, cIdx) {
+    const actor = players[pIdx];
+    discardPile.push(actor.hand[cIdx]);
+    actor.hand.splice(cIdx, 1);
+    refillHand(actor);
+    nextTurn(`${actor.name} descartó`);
 }
 
 function nextTurn(log) {
@@ -562,12 +571,19 @@ function checkAiTurn() {
 
 function aiPlay() {
     const bot = players[turnIndex];
+    
+    // 1. Intentar jugar órgano
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
             executeMove(turnIndex, i, turnIndex, bot.hand[i].color, null);
             return;
         }
     }
+    
+    // 2. Si no, intentar jugar cualquier carta (IA Tonta pero activa)
+    // Esto es arriesgado sin lógica compleja, mejor descartar para asegurar fluidez.
+    // Opcional: Implementar ataque básico.
+    // Por ahora, fallback a descarte para evitar bloqueo.
     executeDiscard(turnIndex, 0);
 }
 
@@ -633,6 +649,7 @@ function render() {
                     btn.style.display = 'none';
                 } else {
                     btn.className = 'discard-btn'; btn.innerText = '🗑️';
+                    // IMPORTANTE: stopPropagation para que no seleccione la carta
                     btn.onclick = (e) => { e.stopPropagation(); discardCard(i); };
                 }
             }
@@ -723,7 +740,7 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function toggleChat() { const m = document.getElementById('chat-modal'); isChatOpen = !isChatOpen; m.style.display = isChatOpen ? 'flex' : 'none'; if(isChatOpen) document.getElementById('chat-badge').style.display = 'none'; }
-function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { addChatMessage(players[myPlayerIndex].name, msg); if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); input.value = ''; } }
+function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); else addChatMessage(players[myPlayerIndex].name, msg); input.value = ''; } }
 function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMessages.length>5) chatMessages.shift(); const h = document.getElementById('chat-history'); h.innerHTML = chatMessages.map(m => `<div class="chat-msg ${m.name===players[myPlayerIndex].name?'me':''}"><b>${m.name}:</b> ${m.msg}</div>`).join(''); if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline'; }
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
