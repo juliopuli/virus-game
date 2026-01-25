@@ -15,6 +15,7 @@
         <div class="menu-box">
             <h1>VIRUS!</h1>
             <input type="text" id="username" placeholder="Tu Nombre" class="name-input">
+            
             <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Local)</button>
             <div class="divider"></div>
             <button onclick="showMultiplayerOptions()" class="menu-btn">👥 Multiplayer (Online)</button>
@@ -41,7 +42,15 @@
             </div>
             <p id="connection-status" style="margin-top: 10px; color: #ccc; font-size: 0.8rem;"></p>
         </div>
-        <div class="version-menu">V.3.4</div>
+    </div>
+
+    <div id="round-modal">
+        <div class="round-content">
+            <h2 id="round-title">¡GANADOR!</h2>
+            <p id="round-message">El jugador X gana la ronda</p>
+            <div id="round-scores" style="margin-bottom: 20px; font-weight: bold;"></div>
+            <button id="next-round-btn" onclick="continueGame()">CONTINUAR</button>
+        </div>
     </div>
 
     <button id="chat-btn" onclick="toggleChat()" style="display:none;">💬 <span id="chat-badge" style="display:none;">●</span></button>
@@ -55,9 +64,7 @@
 
     <div id="game-container" class="blurred">
         <div id="scoreboard-area">
-            <div id="turn-indicator">Esperando...</div>
-            <div id="tournament-score">P1: 0 | P2: 0</div>
-        </div>
+            </div>
         <div id="notification-bar">...</div>
         
         <div id="rivals-container"></div>
@@ -75,10 +82,7 @@
         </div>
     </div>
     
-    <div class="version-display">V.3.6</div>
+    <div class="version-display">V.3.7</div>
     <script src="script.js"></script>
 </body>
 </html>
-
-
-
