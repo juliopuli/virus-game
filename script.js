@@ -1,6 +1,6 @@
-// --- CONFIGURACIÓN DE LICENCIAS V4.0 ---
+// --- CONFIGURACIÓN V4.0.1 ---
 const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
-const MAX_TRIAL_GAMES = 10;
+const MAX_TRIAL_ROUNDS = 10; // Límite de RONDAS (manos), no torneos
 
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
@@ -26,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_final/'; 
+const TOPIC_PREFIX = 'virusgame/v4_0_1/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -40,17 +40,17 @@ window.onload = function() { checkLicenseStatus(); };
 
 function checkLicenseStatus() {
     const isPremium = localStorage.getItem('virus_premium') === 'true';
-    const gamesPlayed = parseInt(localStorage.getItem('virus_games_played') || '0');
+    const roundsPlayed = parseInt(localStorage.getItem('virus_rounds_played') || '0');
     const trialDiv = document.getElementById('trial-counter');
     if (isPremium) {
         trialDiv.style.display = 'block';
         trialDiv.innerText = "⭐ VERSIÓN PREMIUM";
         trialDiv.style.color = "#f1c40f";
     } else {
-        if (gamesPlayed >= MAX_TRIAL_GAMES) openLicenseModal(false);
+        if (roundsPlayed >= MAX_TRIAL_ROUNDS) openLicenseModal(false);
         else {
             trialDiv.style.display = 'block';
-            trialDiv.innerText = `Prueba Gratuita: ${gamesPlayed} / ${MAX_TRIAL_GAMES} partidas`;
+            trialDiv.innerText = `Prueba: ${roundsPlayed} / ${MAX_TRIAL_ROUNDS} rondas`;
         }
     }
 }
@@ -70,7 +70,7 @@ function openLicenseModal(isVoluntary = false) {
     } else {
         let existingClose = document.querySelector('.close-license-btn');
         if (existingClose) existingClose.remove();
-        msg.innerHTML = "⛔ <b>¡Prueba Finalizada!</b><br>Has jugado tus 10 partidas.<br>Introduce una licencia para seguir.";
+        msg.innerHTML = `⛔ <b>¡Prueba Finalizada!</b><br>Has jugado tus ${MAX_TRIAL_ROUNDS} rondas.<br>Introduce una licencia para seguir.`;
     }
     modal.style.display = 'flex';
 }
@@ -93,9 +93,9 @@ function validateLicense() {
 function incrementTrialCounter() {
     const isPremium = localStorage.getItem('virus_premium') === 'true';
     if (!isPremium) {
-        let games = parseInt(localStorage.getItem('virus_games_played') || '0');
-        games++;
-        localStorage.setItem('virus_games_played', games);
+        let rounds = parseInt(localStorage.getItem('virus_rounds_played') || '0');
+        rounds++;
+        localStorage.setItem('virus_rounds_played', rounds);
         checkLicenseStatus(); 
     }
 }
@@ -103,7 +103,8 @@ function incrementTrialCounter() {
 // --- MENÚ ---
 function startLocalGame() {
     let name = getCleanName();
-    if (!name) return alert("¡Debes poner tu nombre para jugar!");
+    if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!"); // OBLIGATORIO
+    
     stopNetwork();
     isMultiplayer = false; isHost = true;
     players = [
@@ -177,7 +178,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v40_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v401_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -265,6 +266,16 @@ function handleNetworkData(data) {
     if (data.type === 'CHAT') {
         if (data.senderIdx !== myPlayerIndex) {
             addChatMessage(data.content.name, data.content.msg);
+        }
+    }
+
+    // NUEVO: CLIENTES RECIBEN AVISO DE FIN DE RONDA
+    if (data.type === 'ROUND_WIN') {
+        const winnerName = data.content.winnerName;
+        const winner = players.find(p => p.name === winnerName);
+        if (winner && !isHost) { // El host ya lo hizo en local
+            incrementTrialCounter(); // SUMAR RONDA A CLIENTES
+            showRoundModal(winner);
         }
     }
 }
@@ -356,7 +367,7 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- ACCIONES ---
+// --- ACCIONES CON PUNTERÍA AUTOMÁTICA ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -364,9 +375,11 @@ function playCard(cardIndex) {
 
     const card = players[myPlayerIndex].hand[cardIndex];
     
+    // 1. Automáticos
     if (card.type === 'organ') { submitMove(cardIndex, myPlayerIndex, card.color, null); return; }
     if (card.name === 'Guante de Látex') { submitMove(cardIndex, myPlayerIndex, null, null); return; }
     
+    // 2. Error Médico
     if (card.name === 'Error Médico') {
         if (players.length === 2) {
             let targetIdx = (myPlayerIndex + 1) % 2;
@@ -377,6 +390,7 @@ function playCard(cardIndex) {
         return;
     }
 
+    // 3. Inteligentes (Target Scan)
     let possibleTargets = scanTargets(card);
     if (possibleTargets.length === 0) {
         notify("⚠️ No hay objetivos válidos");
@@ -624,7 +638,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
         notify("⚠️ Jugada no válida en ese objetivo");
     } else if (players[pIdx].isBot) {
-        executeDiscard(pIdx, 0); // FALLBACK CRÍTICO
+        executeDiscard(pIdx, 0);
     }
 }
 
@@ -647,9 +661,15 @@ function nextTurn(log) {
 
     if (winner) {
         winner.wins++;
-        incrementTrialCounter();
+        incrementTrialCounter(); // HOST SUMA
         lastActionLog = `🏆 ¡${winner.name} GANA!`;
         broadcastState(); 
+        
+        // AVISAR A CLIENTES DE FIN DE RONDA
+        if (isHost) {
+            sendData('ROUND_WIN', { winnerName: winner.name });
+        }
+        
         showRoundModal(winner); 
     } else {
         broadcastState();
@@ -705,7 +725,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0); // FALLBACK
+    executeDiscard(turnIndex, 0);
 }
 
 // --- RENDER ---
