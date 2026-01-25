@@ -24,7 +24,7 @@ body {
 /* MENÚ */
 #main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
 .menu-box { background: var(--bg-main); padding: 25px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.1); text-align: center; max-width: 90%; width: 350px; }
-.name-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2); font-size: 1.1rem; text-align: center; }
+.name-input, .menu-select { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2); font-size: 1.1rem; text-align: center; }
 .menu-btn { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #34495e; color: white; }
 .menu-btn:hover { background: var(--accent-blue); }
 .divider { height: 1px; background: rgba(255,255,255,0.2); margin: 15px 0; }
@@ -38,9 +38,11 @@ body {
 
 /* JUEGO */
 #game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 8px; margin: auto; }
-#scoreboard-area { display: flex; justify-content: center; align-items: center; background: rgba(0,0,0,0.3); padding: 8px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); }
-#turn-indicator { font-size: 1.1rem; font-weight: bold; }
-#notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; min-height: 35px; display: flex; align-items: center; justify-content: center;}
+#scoreboard-area { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); width: 100%; }
+#turn-indicator { font-size: 1rem; font-weight: bold; flex-grow: 1; text-align: left; }
+#tournament-score { font-size: 0.9rem; font-weight: bold; color: var(--accent-green); text-align: right; }
+
+#notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; min-height: 35px; display: flex; align-items: center; justify-content: center; width: 100%; }
 
 /* GRID RIVALES */
 #rivals-container { display: grid; gap: 8px; width: 100%; transition: 0.3s; }
@@ -51,7 +53,6 @@ body {
     transition: all 0.2s; position: relative;
 }
 
-/* TURNO ACTIVO (VERDE FUERTE) */
 .active-turn { 
     border: 3px solid #2ecc71 !important; 
     background-color: rgba(46, 204, 113, 0.15) !important;
@@ -60,7 +61,7 @@ body {
     z-index: 5;
 }
 
-/* SELECCIÓN DE ÓRGANO (NUEVO) */
+/* SELECCIÓN DE OBJETIVO */
 .selectable-organ {
     cursor: pointer;
     animation: organPulse 1s infinite;
@@ -69,7 +70,16 @@ body {
     z-index: 50;
     box-shadow: 0 0 10px #f1c40f;
 }
-@keyframes organPulse { 0% { transform: scale(1.05); } 50% { transform: scale(1.15); } 100% { transform: scale(1.05); } }
+.selectable-organ:hover { transform: scale(1.15); }
+
+/* SELECCIÓN DE ORIGEN (TRASPLANTE) */
+.selected-source {
+    border: 3px solid #9b59b6 !important; /* Morado */
+    box-shadow: 0 0 15px #9b59b6;
+    transform: scale(1.1);
+}
+
+@keyframes organPulse { 0% { transform: scale(1.05); } 50% { transform: scale(1.1); } 100% { transform: scale(1.05); } }
 
 h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-shadow: 0 2px 2px black; }
 .body-slots { display: flex; gap: 4px; min-height: var(--card-h); justify-content: center; align-items: center; flex-wrap: wrap; width: 100%; padding: 5px; }
