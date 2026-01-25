@@ -17,7 +17,7 @@
             <input type="text" id="username" placeholder="Tu Nombre" class="name-input">
             <button onclick="startLocalGame()" class="menu-btn">👤 vs 🤖 (Local)</button>
             <div class="divider"></div>
-            <button onclick="showMultiplayerOptions()" class="menu-btn">👥 Multiplayer (2-4)</button>
+            <button onclick="showMultiplayerOptions()" class="menu-btn">👥 Multiplayer (Online)</button>
             
             <div id="mp-options" style="display:none; margin-top:15px;">
                 <button onclick="createRoom()" class="mp-action-btn host">Crear Sala</button>
@@ -26,7 +26,12 @@
                 <div id="room-code-display" style="display:none;">
                     <p>CÓDIGO:</p>
                     <h2 id="my-code">...</h2>
-                    <p class="waiting" id="waiting-msg">Esperando...</p>
+                    <div id="lobby-list" style="margin:10px 0; font-size:0.9rem; color:#f1c40f;">
+                        Esperando jugadores...
+                    </div>
+                    <button id="start-game-btn" onclick="hostStartGame()" class="confirm-btn" style="display:none; background:#e74c3c; margin-top:10px; width:100%;">
+                        ¡EMPEZAR PARTIDA!
+                    </button>
                 </div>
                 
                 <div id="join-input-area" style="display:none;">
@@ -38,7 +43,7 @@
         </div>
     </div>
 
-    <button id="chat-btn" onclick="toggleChat()" style="display:none;">💬</button>
+    <button id="chat-btn" onclick="toggleChat()" style="display:none;">💬 <span id="chat-badge" style="display:none;">●</span></button>
     <div id="chat-modal" style="display:none;">
         <div class="chat-content">
             <div class="chat-header"><h3>Chat</h3><button onclick="toggleChat()">✖</button></div>
@@ -48,14 +53,16 @@
     </div>
 
     <div id="game-container" class="blurred">
-        <div id="scoreboard-area"></div>
+        <div id="scoreboard-area">
+            <div id="turn-indicator">Esperando...</div>
+        </div>
         <div id="notification-bar">...</div>
         
         <div id="rivals-container"></div>
 
         <div id="deck-area">
             <div class="deck-info"><div class="card deck-visual"><span id="deck-count">0</span></div></div>
-            <button onclick="startLocalGame()" id="restart-btn" style="display:none">Salir</button>
+            <button onclick="location.reload()" id="restart-btn" style="display:none">Salir</button>
         </div>
 
         <div class="board-section">
@@ -65,7 +72,7 @@
         </div>
     </div>
     
-    <div class="version-display">Ver.2601232300</div>
+    <div class="version-display">Ver.2601240900</div>
     <script src="script.js"></script>
 </body>
 </html>
