@@ -1,3 +1,7 @@
+// --- CONFIGURACIÓN DE LICENCIAS V4.0 ---
+const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
+const MAX_TRIAL_GAMES = 10;
+
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -22,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_8_3/'; // Canal actualizado
+const TOPIC_PREFIX = 'virusgame/v4_0_final/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -31,20 +35,82 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
+// --- SISTEMA DE LICENCIAS ---
+window.onload = function() { checkLicenseStatus(); };
+
+function checkLicenseStatus() {
+    const isPremium = localStorage.getItem('virus_premium') === 'true';
+    const gamesPlayed = parseInt(localStorage.getItem('virus_games_played') || '0');
+    const trialDiv = document.getElementById('trial-counter');
+    if (isPremium) {
+        trialDiv.style.display = 'block';
+        trialDiv.innerText = "⭐ VERSIÓN PREMIUM";
+        trialDiv.style.color = "#f1c40f";
+    } else {
+        if (gamesPlayed >= MAX_TRIAL_GAMES) openLicenseModal(false);
+        else {
+            trialDiv.style.display = 'block';
+            trialDiv.innerText = `Prueba Gratuita: ${gamesPlayed} / ${MAX_TRIAL_GAMES} partidas`;
+        }
+    }
+}
+
+function openLicenseModal(isVoluntary = false) {
+    const modal = document.getElementById('license-modal');
+    const msg = document.getElementById('license-msg');
+    if (isVoluntary) {
+        msg.innerHTML = "Introduce tu código para activar la versión Premium.";
+        document.querySelector('.close-license-btn')?.remove(); 
+        let closeBtn = document.createElement('button');
+        closeBtn.innerText = "Cancelar";
+        closeBtn.className = "close-license-btn";
+        closeBtn.style = "margin-top:10px; background:none; border:none; color:#ccc; cursor:pointer; text-decoration:underline;";
+        closeBtn.onclick = () => { modal.style.display = 'none'; };
+        document.querySelector('.license-box').appendChild(closeBtn);
+    } else {
+        let existingClose = document.querySelector('.close-license-btn');
+        if (existingClose) existingClose.remove();
+        msg.innerHTML = "⛔ <b>¡Prueba Finalizada!</b><br>Has jugado tus 10 partidas.<br>Introduce una licencia para seguir.";
+    }
+    modal.style.display = 'flex';
+}
+
+function validateLicense() {
+    const input = document.getElementById('license-key');
+    const code = input.value.trim().toUpperCase();
+    const errorMsg = document.getElementById('license-error');
+    if (VALID_LICENSES.includes(code)) {
+        localStorage.setItem('virus_premium', 'true');
+        alert("¡Licencia Activada Correctamente! 🎉");
+        location.reload();
+    } else {
+        errorMsg.style.display = 'block';
+        input.style.borderColor = 'red';
+        setTimeout(() => { input.style.borderColor = '#555'; errorMsg.style.display = 'none'; }, 2000);
+    }
+}
+
+function incrementTrialCounter() {
+    const isPremium = localStorage.getItem('virus_premium') === 'true';
+    if (!isPremium) {
+        let games = parseInt(localStorage.getItem('virus_games_played') || '0');
+        games++;
+        localStorage.setItem('virus_games_played', games);
+        checkLicenseStatus(); 
+    }
+}
+
 // --- MENÚ ---
 function startLocalGame() {
     let name = getCleanName();
     if (!name) return alert("¡Debes poner tu nombre para jugar!");
-    
     stopNetwork();
     isMultiplayer = false; isHost = true;
-    
     players = [
         { name: name, hand: [], body: [], wins: 0, isBot: false },
         { name: "JULIO", hand: [], body: [], wins: 0, isBot: true }
     ];
     myPlayerIndex = 0;
-    
     startGameUI(); 
     initGame();
 }
@@ -52,7 +118,6 @@ function startLocalGame() {
 function showMultiplayerOptions() {
     if(!getCleanName()) return alert("¡Escribe tu nombre!");
     document.getElementById('mp-options').style.display = 'block';
-    // Ocultar botones principales al entrar en multiplayer
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
     document.querySelector('.meta-container').style.display = 'none';
@@ -94,12 +159,10 @@ function createRoom() {
     document.getElementById('my-code').innerText = roomCode;
     document.getElementById('room-code-display').style.display = 'block';
     document.querySelector('.mp-grid').style.display = 'none';
-    
     isHost = true; isMultiplayer = true;
     const name = getCleanName();
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     myPlayerIndex = 0;
-    
     updateLobbyUI();
     connectMqtt();
 }
@@ -114,7 +177,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v383_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v40_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -247,10 +310,8 @@ function initGame() {
         visualDeckCount = deck.length; 
         
         if(isHost) {
-            // --- CAMBIO AQUÍ: Leemos el nuevo ID del selector de meta en el menú principal ---
             let e = document.getElementById('target-wins-main');
             if(e) targetWins = parseInt(e.value) || 3;
-            // -------------------------------------------------------------------------------
             broadcastState('GAME_START');
             checkAiTurn();
         }
@@ -282,10 +343,9 @@ function applyGameState(content) {
 }
 
 function refillHand(player) {
-    let safetyCounter = 0;
+    let safety = 0;
     while (player.hand.length < 3) {
-        safetyCounter++;
-        if (safetyCounter > 100) break; 
+        safety++; if(safety > 50) break;
         if (deck.length === 0) {
             if (discardPile.length === 0) break;
             deck = discardPile.sort(() => Math.random() - 0.5);
@@ -296,7 +356,7 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- LÓGICA ---
+// --- ACCIONES ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -564,7 +624,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
         notify("⚠️ Jugada no válida en ese objetivo");
     } else if (players[pIdx].isBot) {
-        executeDiscard(pIdx, 0);
+        executeDiscard(pIdx, 0); // FALLBACK CRÍTICO
     }
 }
 
@@ -587,6 +647,7 @@ function nextTurn(log) {
 
     if (winner) {
         winner.wins++;
+        incrementTrialCounter();
         lastActionLog = `🏆 ¡${winner.name} GANA!`;
         broadcastState(); 
         showRoundModal(winner); 
@@ -644,7 +705,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0);
+    executeDiscard(turnIndex, 0); // FALLBACK
 }
 
 // --- RENDER ---
@@ -799,7 +860,7 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function toggleChat() { const m = document.getElementById('chat-modal'); isChatOpen = !isChatOpen; m.style.display = isChatOpen ? 'flex' : 'none'; if(isChatOpen) document.getElementById('chat-badge').style.display = 'none'; }
-function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { addChatMessage(players[myPlayerIndex].name, msg); if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); input.value = ''; } }
+function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); else addChatMessage(players[myPlayerIndex].name, msg); input.value = ''; } }
 function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMessages.length>5) chatMessages.shift(); const h = document.getElementById('chat-history'); h.innerHTML = chatMessages.map(m => `<div class="chat-msg ${m.name===players[myPlayerIndex].name?'me':''}"><b>${m.name}:</b> ${m.msg}</div>`).join(''); if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline'; }
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
