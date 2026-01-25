@@ -53,9 +53,9 @@ body {
 
 /* INDICADORES DE TURNO Y SELECCIÓN */
 .active-turn { 
-    border: 2px solid #2ecc71 !important; 
-    background-color: rgba(46, 204, 113, 0.1) !important;
-    box-shadow: 0 0 15px rgba(46, 204, 113, 0.3);
+    border: 3px solid #2ecc71 !important; 
+    background-color: rgba(46, 204, 113, 0.15) !important;
+    box-shadow: 0 0 15px rgba(46, 204, 113, 0.4) !important;
 }
 .waiting-turn { opacity: 0.9; }
 
@@ -76,6 +76,9 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 #deck-area { display: flex; justify-content: center; align-items: center; gap: 10px; padding: 5px; }
 .deck-visual { background: linear-gradient(135deg, #2c3e50, #1a252f) !important; border: 2px solid white !important; color: white !important; transform: rotate(-2deg); height: 90px; width: 60px; display: flex; justify-content: center; align-items: center; }
 #deck-count { font-size: 16px; font-weight: 800; }
+
+/* CONTROLES DINÁMICOS (Multidescarte) */
+#dynamic-controls { display: flex; gap: 10px; align-items: center; }
 
 /* CARTAS */
 .card-container { display: flex; flex-direction: column; align-items: center; gap: 2px; }
@@ -110,8 +113,7 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 .chat-msg b { color: #3498db; }
 .chat-msg.me b { color: #2ecc71; }
 
-/* VERSIÓN CON Z-INDEX ALTO PARA VERSE SOBRE EL MENÚ */
-.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.8; font-family: monospace; color: #ecf0f1; pointer-events: none; z-index: 2001; }
+.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.8; font-family: monospace; color: #ecf0f1; pointer-events: none; z-index: 2001; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 
 @media (max-width: 500px) { 
