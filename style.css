@@ -1,19 +1,16 @@
 :root {
     --bg-main: #2c3e50;
     --text-color: #ecf0f1;
-    --accent-blue: #3498db;
-    --accent-red: #e74c3c;
-    --accent-green: #2ecc71;
     --card-w: 70px; 
     --card-h: 105px;
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
 body { 
     background: radial-gradient(circle at center, #34495e 0%, #1a252f 100%); 
     color: var(--text-color); 
-    font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0; padding: 10px;
     padding-top: env(safe-area-inset-top);
     padding-bottom: calc(env(safe-area-inset-bottom) + 40px); 
@@ -24,25 +21,71 @@ body {
 /* MENÚ */
 #main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
 .menu-box { background: var(--bg-main); padding: 25px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.1); text-align: center; max-width: 90%; width: 350px; position: relative; }
-.name-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2); font-size: 1.1rem; text-align: center; }
-.menu-btn { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #34495e; color: white; }
-.menu-btn:hover { background: var(--accent-blue); }
+
+/* FIX IPHONE INPUT */
+.name-input { 
+    width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; 
+    background: rgba(255,255,255,0.9); color: #333; border: 2px solid #3498db; 
+    font-size: 1.1rem; text-align: center; font-weight: bold;
+    -webkit-user-select: text; user-select: text; /* Permite seleccionar y borrar en iOS */
+}
+
+.menu-btn { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #34495e; color: white; transition: 0.2s;}
+.menu-btn:active { transform: scale(0.98); }
 .divider { height: 1px; background: rgba(255,255,255,0.2); margin: 15px 0; }
-.mp-action-btn { width: 48%; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; }
-.host { background: var(--accent-green); color: #2c3e50; }
-.join { background: var(--accent-blue); color: white; }
-#room-code-display h2 { font-family: monospace; font-size: 2rem; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; letter-spacing: 5px; }
-#remote-code-input { width: 100%; padding: 10px; margin-bottom: 10px; font-size: 1.2rem; text-align: center; }
-.confirm-btn { width: 100%; padding: 10px; background: var(--accent-green); border: none; border-radius: 5px; font-weight: bold; }
+.mp-action-btn { width: 48%; padding: 12px; border-radius: 8px; border: none; cursor: pointer; font-weight: bold; margin: 5px 1%; }
+.host { background: #2ecc71; color: #2c3e50; }
+.join { background: #3498db; color: white; }
+#room-code-display h2 { font-family: monospace; font-size: 2.5rem; background: rgba(0,0,0,0.3); padding: 10px; border-radius: 10px; letter-spacing: 5px; color: #f1c40f; }
+#remote-code-input { width: 100%; padding: 12px; margin-bottom: 10px; font-size: 1.2rem; text-align: center; border-radius: 8px; border: none;}
+.confirm-btn { width: 100%; padding: 12px; background: #2ecc71; border: none; border-radius: 8px; font-weight: bold; font-size: 1.1rem; margin-top: 10px; cursor: pointer;}
 .blurred { filter: blur(5px); pointer-events: none; }
 
 /* JUEGO */
-#game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 8px; margin: auto; }
-#scoreboard-area { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); width: 100%; }
-#turn-indicator { font-size: 1rem; font-weight: bold; flex-grow: 1; text-align: left; }
-#tournament-score { font-size: 0.8rem; font-weight: bold; color: var(--accent-green); text-align: right; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; }
+#game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 10px; margin: auto; }
 
-#notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; min-height: 35px; display: flex; align-items: center; justify-content: center; width: 100%; }
+/* --- MARCADOR PRO (NUEVO) --- */
+#scoreboard-area { 
+    display: flex; 
+    justify-content: center; 
+    gap: 8px;
+    padding: 5px; 
+    width: 100%; 
+    flex-wrap: wrap;
+}
+
+.score-card {
+    background: rgba(0,0,0,0.5);
+    border-radius: 8px;
+    padding: 5px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 70px;
+    border-top: 3px solid transparent;
+    transition: all 0.3s;
+    flex-grow: 1;
+}
+
+.score-card .name { font-size: 0.75rem; color: #ccc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 80px;}
+.score-card .wins { font-size: 1rem; font-weight: 800; color: white; }
+
+/* Colores por jugador */
+.p1-color { border-top-color: #3498db; } /* Azul */
+.p2-color { border-top-color: #e74c3c; } /* Rojo */
+.p3-color { border-top-color: #f1c40f; } /* Amarillo */
+.p4-color { border-top-color: #9b59b6; } /* Morado */
+
+/* Turno activo en marcador */
+.score-card.active {
+    background: rgba(255,255,255,0.15);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+.score-card.active .name { color: #fff; font-weight: bold; }
+/* --------------------------- */
+
+#notification-bar { background: linear-gradient(135deg, #f39c12, #d35400); color: white; padding: 8px; text-align: center; font-weight: 700; border-radius: 8px; font-size: 0.9rem; min-height: 35px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); text-shadow: 0 1px 2px rgba(0,0,0,0.5); }
 
 /* GRID RIVALES */
 #rivals-container { display: grid; gap: 8px; width: 100%; transition: 0.3s; }
@@ -53,10 +96,11 @@ body {
     transition: all 0.2s; position: relative;
 }
 
+/* TURNO ACTIVO (VERDE FUERTE) */
 .active-turn { 
     border: 3px solid #2ecc71 !important; 
     background-color: rgba(46, 204, 113, 0.15) !important;
-    box-shadow: 0 0 20px rgba(46, 204, 113, 0.3) !important;
+    box-shadow: 0 0 20px rgba(46, 204, 113, 0.4) !important;
     transform: scale(1.01);
     z-index: 5;
 }
@@ -105,13 +149,12 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .chat-header { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 10px; }
 #chat-history { height: 200px; background: rgba(0,0,0,0.3); overflow-y: auto; padding: 10px; border-radius: 8px; font-size: 0.9rem; }
 .chat-input-area { display: flex; gap: 8px; }
-#chat-input { flex-grow: 1; padding: 10px; border-radius: 8px; border: none; outline: none; }
+#chat-input { flex-grow: 1; padding: 10px; border-radius: 8px; border: none; outline: none; -webkit-user-select: text; user-select: text; }
 .chat-msg { margin: 4px 0; word-wrap: break-word; line-height: 1.3; }
 .chat-msg b { color: #3498db; }
 .chat-msg.me b { color: #2ecc71; }
 
-/* VERSIÓN CORREGIDA */
-.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
+.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.5; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 
 @media (max-width: 500px) { 
