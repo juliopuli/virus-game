@@ -22,7 +22,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_9/'; // Canal V3.9
+const TOPIC_PREFIX = 'virusgame/v3_8_1/'; // Canal ajustado a versión
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -33,9 +33,11 @@ const icons = {
 
 // --- MENÚ ---
 function startLocalGame() {
+    let name = getCleanName();
+    if (!name) return alert("¡Debes poner tu nombre para jugar!"); // OBLIGATORIO
+    
     stopNetwork();
     isMultiplayer = false; isHost = true;
-    let name = getCleanName();
     
     players = [
         { name: name, hand: [], body: [], wins: 0, isBot: false },
@@ -108,7 +110,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v39_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v381_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -194,8 +196,9 @@ function handleNetworkData(data) {
     }
 
     if (data.type === 'CHAT') {
-        // CORRECCIÓN CHAT: Solo mostramos lo que viene del servidor
-        addChatMessage(data.content.name, data.content.msg);
+        if (data.senderIdx !== myPlayerIndex) {
+            addChatMessage(data.content.name, data.content.msg);
+        }
     }
 }
 
@@ -284,7 +287,7 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- ACCIONES ---
+// --- ACCIONES CON AUTO-SELECCIÓN ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -292,6 +295,11 @@ function playCard(cardIndex) {
 
     const card = players[myPlayerIndex].hand[cardIndex];
     
+    // 1. Automáticos Siempre
+    if (card.type === 'organ') { submitMove(cardIndex, myPlayerIndex, card.color, null); return; }
+    if (card.name === 'Guante de Látex') { submitMove(cardIndex, myPlayerIndex, null, null); return; }
+    
+    // 2. Error Médico (Especial)
     if (card.name === 'Error Médico') {
         if (players.length === 2) {
             let targetIdx = (myPlayerIndex + 1) % 2;
@@ -302,17 +310,93 @@ function playCard(cardIndex) {
         return;
     }
 
-    if (card.type === 'organ') {
-        submitMove(cardIndex, myPlayerIndex, card.color, null);
+    // 3. CARTAS CON TARGET (Virus, Medicina, Ladrón, Contagio)
+    // Intentamos encontrar objetivos válidos automáticamente
+    let possibleTargets = scanTargets(card);
+
+    if (possibleTargets.length === 0) {
+        notify("⚠️ No hay objetivos válidos para esta carta");
         return;
-    }
+    } 
     
-    if (card.name === 'Guante de Látex') {
-        submitMove(cardIndex, myPlayerIndex, null, null);
-        return;
+    if (possibleTargets.length === 1) {
+        // ¡SOLO HAY UNA OPCIÓN! AUTO-JUGAR
+        let t = possibleTargets[0];
+        submitMove(cardIndex, t.pIdx, t.color, null);
+    } else {
+        // HAY MÁS DE UNA -> SELECCIÓN MANUAL
+        enterSelectionMode(cardIndex, card);
+    }
+}
+
+// NUEVA FUNCIÓN: Analiza el tablero para ver si hay 1 o muchas opciones
+function scanTargets(card) {
+    let targets = []; // Array de {pIdx, color}
+
+    // MEDICINA
+    if (card.type === 'medicine') {
+        players[myPlayerIndex].body.forEach(o => {
+            if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) {
+                targets.push({pIdx: myPlayerIndex, color: o.color});
+            }
+        });
+    }
+    // VIRUS
+    else if (card.type === 'virus') {
+        players.forEach((p, pIdx) => {
+            if (pIdx !== myPlayerIndex) {
+                p.body.forEach(o => {
+                    if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2) {
+                        targets.push({pIdx: pIdx, color: o.color});
+                    }
+                });
+            }
+        });
+    }
+    // LADRÓN
+    else if (card.name === 'Ladrón') {
+        players.forEach((p, pIdx) => {
+            if (pIdx !== myPlayerIndex) {
+                p.body.forEach(o => {
+                    if (o.vaccines < 2) {
+                        // Check if I don't have it
+                        if (!players[myPlayerIndex].body.some(my => my.color === o.color)) {
+                            targets.push({pIdx: pIdx, color: o.color});
+                        }
+                    }
+                });
+            }
+        });
+    }
+    // CONTAGIO
+    else if (card.name === 'Contagio') {
+        // Find my infected organs first
+        let myInfected = players[myPlayerIndex].body.filter(o => o.infected);
+        if (myInfected.length > 0) {
+            players.forEach((p, pIdx) => {
+                if (pIdx !== myPlayerIndex) {
+                    p.body.forEach(o => {
+                        // Target must be healthy, no vaccine
+                        if (!o.infected && o.vaccines === 0) {
+                            // Check compatibility with ANY of my infected organs
+                            if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
+                                targets.push({pIdx: pIdx, color: o.color});
+                            }
+                        }
+                    });
+                }
+            });
+        }
+    }
+    // TRASPLANTE (Demasiado complejo para auto completo, pero podemos intentarlo)
+    // Para V3.8.1 lo dejaremos manual si hay dudas, porque son 2 pasos. 
+    // Si solo tengo 1 organo y rival 1 organo valido -> Auto? Mejor NO arriesgar en trasplante.
+    // Devolvemos >1 para forzar manual en trasplante.
+    else if (card.name === 'Trasplante') {
+        targets.push({}, {}); // Dummy data to force manual
     }
 
-    enterSelectionMode(cardIndex, card);
+    return targets;
 }
 
 function enterSelectionMode(cardIndex, card) {
@@ -386,6 +470,7 @@ function discardCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) return;
     
+    // Feedback inmediato visual
     notify("Descartando...");
     
     if (isMultiplayer && !isHost) {
@@ -492,10 +577,8 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
         refillHand(actor); 
         nextTurn(log);
     } else if (pIdx === myPlayerIndex && !players[pIdx].isBot) {
-        // Solo avisar si es humano
         notify("⚠️ Jugada no válida en ese objetivo");
     } else if (players[pIdx].isBot) {
-        // Fallback para Bot si falla la lógica
         executeDiscard(pIdx, 0);
     }
 }
@@ -553,7 +636,6 @@ function showRoundModal(winner) {
         btn.disabled = true;
         btn.style.background = "#95a5a6";
     }
-    
     modal.style.display = 'flex';
 }
 
@@ -571,19 +653,14 @@ function checkAiTurn() {
 
 function aiPlay() {
     const bot = players[turnIndex];
-    
-    // 1. Intentar jugar órgano
+    // Intenta jugar órgano
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
             executeMove(turnIndex, i, turnIndex, bot.hand[i].color, null);
             return;
         }
     }
-    
-    // 2. Si no, intentar jugar cualquier carta (IA Tonta pero activa)
-    // Esto es arriesgado sin lógica compleja, mejor descartar para asegurar fluidez.
-    // Opcional: Implementar ataque básico.
-    // Por ahora, fallback a descarte para evitar bloqueo.
+    // Fallback: Descartar
     executeDiscard(turnIndex, 0);
 }
 
@@ -649,7 +726,6 @@ function render() {
                     btn.style.display = 'none';
                 } else {
                     btn.className = 'discard-btn'; btn.innerText = '🗑️';
-                    // IMPORTANTE: stopPropagation para que no seleccione la carta
                     btn.onclick = (e) => { e.stopPropagation(); discardCard(i); };
                 }
             }
@@ -740,7 +816,7 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function toggleChat() { const m = document.getElementById('chat-modal'); isChatOpen = !isChatOpen; m.style.display = isChatOpen ? 'flex' : 'none'; if(isChatOpen) document.getElementById('chat-badge').style.display = 'none'; }
-function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); else addChatMessage(players[myPlayerIndex].name, msg); input.value = ''; } }
+function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { addChatMessage(players[myPlayerIndex].name, msg); if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); input.value = ''; } }
 function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMessages.length>5) chatMessages.shift(); const h = document.getElementById('chat-history'); h.innerHTML = chatMessages.map(m => `<div class="chat-msg ${m.name===players[myPlayerIndex].name?'me':''}"><b>${m.name}:</b> ${m.msg}</div>`).join(''); if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline'; }
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
