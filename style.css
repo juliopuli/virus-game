@@ -23,7 +23,7 @@ body {
 
 /* MENÚ */
 #main-menu { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 2000; display: flex; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
-.menu-box { background: var(--bg-main); padding: 25px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.1); text-align: center; max-width: 90%; width: 350px; }
+.menu-box { background: var(--bg-main); padding: 25px; border-radius: 20px; border: 2px solid rgba(255,255,255,0.1); text-align: center; max-width: 90%; width: 350px; position: relative; }
 .name-input { width: 100%; padding: 12px; margin-bottom: 10px; border-radius: 10px; background: rgba(0,0,0,0.3); color: white; border: 2px solid rgba(255,255,255,0.2); font-size: 1.1rem; text-align: center; }
 .menu-btn { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 1.1rem; font-weight: bold; cursor: pointer; background: #34495e; color: white; }
 .menu-btn:hover { background: var(--accent-blue); }
@@ -38,43 +38,11 @@ body {
 
 /* JUEGO */
 #game-container { width: 100%; max-width: 1000px; display: flex; flex-direction: column; gap: 8px; margin: auto; }
+#scoreboard-area { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,0.3); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); width: 100%; }
+#turn-indicator { font-size: 1rem; font-weight: bold; flex-grow: 1; text-align: left; }
+#tournament-score { font-size: 0.8rem; font-weight: bold; color: var(--accent-green); text-align: right; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; }
 
-/* --- MARCADOR NUEVO ESTILO --- */
-#scoreboard-area { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    background: linear-gradient(90deg, rgba(44, 62, 80, 0.9), rgba(0,0,0,0.6)); 
-    padding: 6px 15px; 
-    border-radius: 30px; /* Más redondeado */
-    border: 1px solid rgba(255,255,255,0.2); 
-    width: 100%; 
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    backdrop-filter: blur(4px);
-}
-
-#turn-indicator { 
-    font-size: 0.95rem; 
-    font-weight: bold; 
-    display: flex; 
-    align-items: center; 
-    gap: 5px;
-    text-shadow: 0 1px 2px black;
-}
-
-#tournament-score { 
-    font-size: 0.8rem; 
-    font-weight: 600; 
-    color: #ecf0f1; 
-    text-align: right; 
-    background: rgba(0,0,0,0.3);
-    padding: 4px 10px;
-    border-radius: 15px;
-    letter-spacing: 0.5px;
-}
-/* --------------------------- */
-
-#notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; min-height: 35px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3); }
+#notification-bar { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #2c3e50; padding: 8px; text-align: center; font-weight: 800; border-radius: 8px; font-size: 0.85rem; min-height: 35px; display: flex; align-items: center; justify-content: center; width: 100%; }
 
 /* GRID RIVALES */
 #rivals-container { display: grid; gap: 8px; width: 100%; transition: 0.3s; }
@@ -93,24 +61,10 @@ body {
     z-index: 5;
 }
 
-/* SELECCIÓN DE OBJETIVO */
-.selectable-organ {
-    cursor: pointer;
-    animation: organPulse 1s infinite;
-    border: 3px solid #f1c40f !important;
-    transform: scale(1.1);
-    z-index: 50;
-    box-shadow: 0 0 10px #f1c40f;
-}
+/* SELECCIÓN */
+.selectable-organ { cursor: pointer; animation: organPulse 1s infinite; border: 3px solid #f1c40f !important; transform: scale(1.1); z-index: 50; box-shadow: 0 0 10px #f1c40f; }
 .selectable-organ:hover { transform: scale(1.15); }
-
-/* SELECCIÓN DE ORIGEN (TRASPLANTE) */
-.selected-source {
-    border: 3px solid #9b59b6 !important; /* Morado */
-    box-shadow: 0 0 15px #9b59b6;
-    transform: scale(1.1);
-}
-
+.selected-source { border: 3px solid #9b59b6 !important; box-shadow: 0 0 15px #9b59b6; transform: scale(1.1); }
 @keyframes organPulse { 0% { transform: scale(1.05); } 50% { transform: scale(1.1); } 100% { transform: scale(1.05); } }
 
 h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-shadow: 0 2px 2px black; }
@@ -156,7 +110,8 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .chat-msg b { color: #3498db; }
 .chat-msg.me b { color: #2ecc71; }
 
-.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.5; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
+/* VERSIÓN CORREGIDA */
+.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.8rem; background: rgba(0,0,0,0.5); padding: 2px 6px; border-radius: 4px; font-family: monospace; color: white; pointer-events: none; z-index: 3000; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 
 @media (max-width: 500px) { 
