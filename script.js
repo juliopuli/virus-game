@@ -14,12 +14,12 @@ let turnIndex = 0;
 let lastActionLog = "Esperando inicio...";
 let chatMessages = [];
 let isChatOpen = false;
-let pendingAction = null; 
+// PendingAction ahora guarda la carta que estás "sosteniendo"
+let pendingAction = null; // { cardIndex: 0, card: {...} } 
 let visualDeckCount = 0;
 
-// Configuración MQTT
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v3_1_3/'; 
+const TOPIC_PREFIX = 'virusgame/v3_2/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -68,18 +68,16 @@ function startGameUI() {
     });
 }
 
-// --- RED (MQTT) ---
+// --- RED ---
 function createRoom() {
     roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     document.getElementById('my-code').innerText = roomCode;
     document.getElementById('room-code-display').style.display = 'block';
     document.querySelectorAll('.mp-action-btn').forEach(b => b.style.display = 'none');
-    
     isHost = true; isMultiplayer = true;
     const name = document.getElementById('username').value;
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     myPlayerIndex = 0;
-    
     updateLobbyUI();
     connectMqtt();
 }
@@ -147,27 +145,21 @@ function handleNetworkData(data) {
         render();
     }
 
-    if (data.type === 'STATE_UPDATE') {
-        applyGameState(data.content);
-    }
+    if (data.type === 'STATE_UPDATE') applyGameState(data.content);
 
     if (isHost && (data.type === 'MOVE' || data.type === 'DISCARD' || data.type === 'MULTI_DISCARD')) {
         processPlayerAction(data);
     }
 
-    if (data.type === 'CHAT') {
-        if (data.content.name !== document.getElementById('username').value) {
-            addChatMessage(data.content.name, data.content.msg);
-        }
+    if (data.type === 'CHAT' && data.content.senderIdx !== myPlayerIndex) {
+        addChatMessage(data.content.name, data.content.msg);
     }
 }
 
 function updateLobbyUI() {
     const list = document.getElementById('lobby-list');
     list.innerHTML = players.map(p => `✅ ${p.name}`).join('<br>');
-    if (players.length >= 2) {
-        document.getElementById('start-game-btn').style.display = 'block';
-    }
+    if (players.length >= 2) document.getElementById('start-game-btn').style.display = 'block';
 }
 
 function hostStartGame() {
@@ -175,7 +167,7 @@ function hostStartGame() {
     initGame(); 
 }
 
-// --- JUEGO ---
+// --- MOTOR DEL JUEGO ---
 function initGame() {
     deck = []; discardPile = [];
     colors.forEach(c => {
@@ -194,7 +186,6 @@ function initGame() {
 
     turnIndex = 0;
     lastActionLog = "¡Empieza la partida!";
-    
     visualDeckCount = deck.length; 
 
     if (isHost) {
@@ -241,21 +232,34 @@ function refillHand(player) {
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
-    if (pendingAction) { cancelSelectionMode(); return; }
+    
+    // Si toco la misma carta para cancelar
+    if (pendingAction && pendingAction.cardIndex === cardIndex) {
+        cancelSelectionMode();
+        return;
+    }
 
     const card = players[myPlayerIndex].hand[cardIndex];
-    let targetIndex = myPlayerIndex; 
 
-    if (card.type === 'virus' || card.name === 'Ladrón' || (card.type === 'medicine' && card.color === 'multicolor')) {
-        enterSelectionMode(cardIndex, card.type);
-        return; 
+    // 1. Jugar Órgano (Automático)
+    if (card.type === 'organ') {
+        submitMove(cardIndex, myPlayerIndex, card.color); // Color para identificar que jugamos organo
+        return;
     }
-    submitMove(cardIndex, targetIndex);
+    
+    // 2. Jugar Globales (Automático)
+    if (card.name === 'Guante de Látex' || card.name === 'Error Médico' || card.name === 'Trasplante' || card.name === 'Contagio') {
+        submitMove(cardIndex, myPlayerIndex, null); // Target da igual
+        return;
+    }
+
+    // 3. Virus, Medicinas o Ladrón -> MODO SELECCIÓN DE ÓRGANO ESPECÍFICO
+    enterSelectionMode(cardIndex, card);
 }
 
-function enterSelectionMode(cardIndex, type) {
-    pendingAction = { cardIndex: cardIndex, type: type };
-    notify("TOCA UN JUGADOR PARA ATACAR");
+function enterSelectionMode(cardIndex, card) {
+    pendingAction = { cardIndex: cardIndex, card: card };
+    notify("TOCA UN ÓRGANO PARA APLICAR");
     render(); 
 }
 
@@ -265,22 +269,26 @@ function cancelSelectionMode() {
     render();
 }
 
-function handleBoardClick(targetPlayerIndex) {
+// Esta función se llama al hacer clic en un ÓRGANO (carta pequeña en mesa)
+function handleOrganClick(targetPlayerIndex, organColor) {
     if (!pendingAction) return;
-    if (targetPlayerIndex === myPlayerIndex && pendingAction.type === 'ladron') {
+    
+    // Ladrón no se puede robar a sí mismo
+    if (targetPlayerIndex === myPlayerIndex && pendingAction.card.name === 'Ladrón') {
         notify("❌ No puedes robarte a ti mismo");
         return;
     }
-    submitMove(pendingAction.cardIndex, targetPlayerIndex);
+
+    submitMove(pendingAction.cardIndex, targetPlayerIndex, organColor);
     pendingAction = null; 
     render(); 
 }
 
-function submitMove(cardIndex, targetIndex) {
+function submitMove(cardIndex, targetIndex, targetColor) {
     if (isMultiplayer && !isHost) {
-        sendData('MOVE', { playerIndex: myPlayerIndex, cardIndex: cardIndex, targetIndex: targetIndex });
+        sendData('MOVE', { playerIndex: myPlayerIndex, cardIndex: cardIndex, targetIndex: targetIndex, targetColor: targetColor });
     } else {
-        executeMove(myPlayerIndex, cardIndex, targetIndex);
+        executeMove(myPlayerIndex, cardIndex, targetIndex, targetColor);
     }
 }
 
@@ -296,7 +304,7 @@ function discardCard(cardIndex) {
 }
 
 function processPlayerAction(data) {
-    if (data.type === 'MOVE') executeMove(data.content.playerIndex, data.content.cardIndex, data.content.targetIndex);
+    if (data.type === 'MOVE') executeMove(data.content.playerIndex, data.content.cardIndex, data.content.targetIndex, data.content.targetColor);
     if (data.type === 'DISCARD') executeDiscard(data.content.playerIndex, data.content.cardIndex);
     if (data.type === 'MULTI_DISCARD') {
         const actor = players[data.content.playerIndex];
@@ -307,7 +315,8 @@ function processPlayerAction(data) {
     }
 }
 
-function executeMove(pIdx, cIdx, tIdx) {
+// --- EJECUCIÓN ---
+function executeMove(pIdx, cIdx, tIdx, tColor) {
     const actor = players[pIdx];
     const target = players[tIdx];
     const card = actor.hand[cIdx];
@@ -319,18 +328,21 @@ function executeMove(pIdx, cIdx, tIdx) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
             success = true; log = `${actor.name} sacó ${card.color}`;
         }
-    } else if (card.type === 'medicine') {
-        // MEDICINA: Permite curar si coincide color, si la medicina es multi, o si el organo es multi
-        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor' || x.color === 'multicolor') && (x.infected || x.vaccines < 2));
-        if (o) {
+    } 
+    else if (card.type === 'medicine') {
+        // Busca el órgano exacto que clicamos (por color)
+        let o = target.body.find(x => x.color === tColor);
+        // Valida si se puede aplicar medicina
+        if (o && (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) {
             if (o.infected) { o.infected = false; log = `${actor.name} curó a ${target.name}`; }
             else { o.vaccines++; log = `${actor.name} vacunó a ${target.name}`; }
             success = true;
         }
-    } else if (card.type === 'virus') {
-        // VIRUS: Infecta si coincide color, si el virus es multi, O SI EL ORGANO ES MULTI (Nueva corrección)
-        let o = target.body.find(x => (x.color === card.color || card.color === 'multicolor' || x.color === 'multicolor') && x.vaccines < 2);
-        if (o) {
+    } 
+    else if (card.type === 'virus') {
+        let o = target.body.find(x => x.color === tColor);
+        // Valida si se puede aplicar virus
+        if (o && (o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2) {
             if (o.vaccines > 0) { o.vaccines--; log = `${actor.name} infectó vacuna de ${target.name}`; }
             else if (!o.infected) { o.infected = true; log = `${actor.name} infectó a ${target.name}`; }
             else {
@@ -340,10 +352,12 @@ function executeMove(pIdx, cIdx, tIdx) {
             }
             success = true;
         }
-    } else if (card.type === 'treatment') {
+    } 
+    else if (card.type === 'treatment') {
         if (card.name === 'Ladrón') {
-            let stealable = target.body.find(o => o.vaccines < 2 && !actor.body.some(m => m.color === o.color));
-            if (stealable) {
+            let stealable = target.body.find(x => x.color === tColor);
+            // Comprobar que no tengo ese color y que no está vacunado
+            if (stealable && stealable.vaccines < 2 && !actor.body.some(m => m.color === stealable.color)) {
                 target.body = target.body.filter(x => x !== stealable);
                 actor.body.push(stealable);
                 success = true; log = `${actor.name} robó órgano a ${target.name}`;
@@ -415,7 +429,8 @@ function aiPlay() {
     const bot = players[turnIndex];
     for (let i=0; i<bot.hand.length; i++) {
         if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
-            executeMove(turnIndex, i, turnIndex);
+            // IA simple para órganos (tIdx es bot index)
+            executeMove(turnIndex, i, turnIndex, bot.hand[i].color);
             return;
         }
     }
@@ -425,13 +440,11 @@ function aiPlay() {
 // --- RENDER ---
 function render() {
     document.getElementById('deck-count').innerText = visualDeckCount;
-    
     const turnName = players[turnIndex] ? players[turnIndex].name : "...";
-    document.getElementById('turn-indicator').innerHTML = 
-        `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
+    document.getElementById('turn-indicator').innerHTML = `Turno: <span style="color:${turnIndex===myPlayerIndex?'#2ecc71':'#e74c3c'}">${turnName}</span>`;
     notify(lastActionLog);
     
-    // 1. Renderizar Rivales
+    // 1. RENDERIZAR RIVALES
     const rivalContainer = document.getElementById('rivals-container');
     rivalContainer.innerHTML = '';
     const rivals = players.filter((p, i) => i !== myPlayerIndex);
@@ -445,31 +458,27 @@ function render() {
             
             let classes = `board-section`;
             if (turnIndex === pIndex) classes += ' active-turn';
-            else classes += ' waiting-turn';
-            
-            if (pendingAction) classes += ' selectable-target';
             
             div.className = classes;
             div.innerHTML = `<h3>${p.name} (${p.wins}🏆)</h3><div class="body-slots"></div>`;
-            div.onclick = () => handleBoardClick(pIndex);
             
-            renderBody(p.body, div.querySelector('.body-slots'));
+            // Renderizar cuerpo del rival (pasamos pIndex para los clics)
+            renderBody(p.body, div.querySelector('.body-slots'), pIndex);
             rivalContainer.appendChild(div);
         });
     }
 
-    // 2. Renderizar Yo
+    // 2. RENDERIZAR YO
     if (myPlayerIndex !== -1 && players[myPlayerIndex]) {
         const me = players[myPlayerIndex];
         const myBodyDiv = document.getElementById('player-body');
-        renderBody(me.body, myBodyDiv);
+        renderBody(me.body, myBodyDiv, myPlayerIndex);
         
         const handDiv = document.getElementById('player-hand');
         handDiv.innerHTML = '';
         me.hand.forEach((c, i) => {
             const container = document.createElement('div');
             container.className = 'card-container';
-            
             const cardDiv = document.createElement('div');
             let isSelected = selectedForDiscard.has(i);
             let isPending = (pendingAction && pendingAction.cardIndex === i);
@@ -484,52 +493,66 @@ function render() {
                 btn.innerText = isSelected ? '❌' : '✅';
                 btn.onclick = (e) => { e.stopPropagation(); toggleSelection(i); };
             } else {
-                btn.className = 'discard-btn'; 
-                btn.innerText = '🗑️';
+                btn.className = 'discard-btn'; btn.innerText = '🗑️';
                 btn.onclick = (e) => { e.stopPropagation(); discardCard(i); };
             }
             container.appendChild(cardDiv); container.appendChild(btn); handDiv.appendChild(container);
         });
 
-        // BORDE VERDE PARA MI TABLERO (Con ID específico)
-        const mySection = document.getElementById('my-board-section'); // USA EL ID NUEVO
-        if (mySection) {
-            let myClasses = 'board-section';
-            if (turnIndex === myPlayerIndex) myClasses += ' active-turn';
-            else myClasses += ' waiting-turn';
-            
-            if (pendingAction && pendingAction.type === 'medicine') myClasses += ' selectable-target'; 
-            mySection.className = myClasses;
-        }
+        const mySection = document.getElementById('my-board-section');
+        if(mySection) mySection.className = (turnIndex === myPlayerIndex) ? 'board-section active-turn' : 'board-section waiting-turn';
         
-        // CONTROLES MULTIDESCARTE
+        // Controles
         const controls = document.getElementById('dynamic-controls');
         controls.innerHTML = '';
         if (!multiDiscardMode) {
             const btn = document.createElement('button');
-            btn.className = 'toggle-mode-btn';
-            btn.innerHTML = '⚙️ Selección';
-            btn.onclick = toggleMultiDiscardMode;
-            controls.appendChild(btn);
+            btn.className = 'toggle-mode-btn'; btn.innerHTML = '⚙️ Selección';
+            btn.onclick = toggleMultiDiscardMode; controls.appendChild(btn);
         } else {
             const confirm = document.createElement('button');
-            confirm.className = 'main-action-btn';
-            confirm.innerHTML = `Borrar (${selectedForDiscard.size})`;
+            confirm.className = 'main-action-btn'; confirm.innerHTML = `Borrar (${selectedForDiscard.size})`;
             confirm.onclick = confirmMultiDiscard;
             const cancel = document.createElement('button');
-            cancel.className = 'cancel-btn';
-            cancel.innerText = 'Cancelar';
-            cancel.onclick = toggleMultiDiscardMode;
-            controls.appendChild(confirm); controls.appendChild(cancel);
+            cancel.className = 'cancel-btn'; cancel.innerText = 'Cancelar';
+            cancel.onclick = toggleMultiDiscardMode; controls.appendChild(confirm); controls.appendChild(cancel);
         }
     }
 }
 
-function renderBody(body, container) {
+// --- RENDERIZADO DE ÓRGANOS CLICABLES ---
+function renderBody(body, container, ownerIndex) {
     container.innerHTML = '';
     body.forEach(o => {
         const d = document.createElement('div');
-        d.className = `card ${o.color} ${o.infected?'virus-effect':''}`;
+        let classes = `card ${o.color} ${o.infected?'virus-effect':''}`;
+        
+        // Comprobar si este órgano es un objetivo válido para la carta seleccionada
+        if (pendingAction) {
+            const card = pendingAction.card;
+            let isValid = false;
+            
+            if (card.type === 'medicine') {
+                // Medicina: Coincide color o es multi, y necesita cura o vacuna
+                if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && (o.infected || o.vaccines < 2)) isValid = true;
+            } else if (card.type === 'virus') {
+                // Virus: Coincide color o es multi, y no está inmunizado
+                if ((o.color === card.color || card.color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2) isValid = true;
+            } else if (card.name === 'Ladrón') {
+                // Ladrón: No soy yo, no está inmunizado, no tengo ese color
+                if (ownerIndex !== myPlayerIndex && o.vaccines < 2) {
+                    const me = players[myPlayerIndex];
+                    if (!me.body.some(myOrg => myOrg.color === o.color)) isValid = true;
+                }
+            }
+
+            if (isValid) {
+                classes += ' selectable-organ';
+                d.onclick = (e) => { e.stopPropagation(); handleOrganClick(ownerIndex, o.color); };
+            }
+        }
+
+        d.className = classes;
         d.innerHTML = icons.organ;
         if(o.vaccines > 0) d.innerHTML += `<div class="status-row">${'🛡️'.repeat(o.vaccines)}</div>`;
         if(o.infected) d.innerHTML += `<div class="status-row">🦠</div>`;
