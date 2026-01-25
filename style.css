@@ -59,7 +59,6 @@ body {
 }
 .waiting-turn { opacity: 0.9; }
 
-/* MODO SELECCIÓN DE OBJETIVO */
 .selectable-target {
     border: 2px dashed #3498db !important;
     background-color: rgba(52, 152, 219, 0.2) !important;
@@ -111,7 +110,8 @@ h3 { margin: 2px 0 5px 0; opacity: 0.9; font-size: 0.85rem; text-align: center; 
 .chat-msg b { color: #3498db; }
 .chat-msg.me b { color: #2ecc71; }
 
-.version-display, .version-menu { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.6; font-family: monospace; color: #ecf0f1; pointer-events: none;}
+/* VERSIÓN CON Z-INDEX ALTO PARA VERSE SOBRE EL MENÚ */
+.version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.8; font-family: monospace; color: #ecf0f1; pointer-events: none; z-index: 2001; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
 
 @media (max-width: 500px) { 
