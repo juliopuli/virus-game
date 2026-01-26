@@ -51,11 +51,20 @@ body {
 }
 .license-btn:hover { background: #2ecc71; box-shadow: 0 0 15px #2ecc71; }
 
+/* AJUSTE POSICIÓN DEMO/PREMIUM V4.0.6 */
 .trial-info {
-    position: fixed; bottom: 25px; left: 10px;
-    background: rgba(0,0,0,0.6); color: #f1c40f;
-    padding: 4px 10px; border-radius: 5px; font-size: 0.75rem;
-    pointer-events: none; z-index: 1000; text-align: left;
+    position: fixed; 
+    bottom: 5px;  /* Misma altura que la versión */
+    right: 10px;  /* A la derecha */
+    left: auto;   /* Quitamos la izquierda */
+    background: rgba(0,0,0,0.6); 
+    color: #f1c40f; 
+    padding: 4px 10px; 
+    border-radius: 5px; 
+    font-size: 0.75rem;
+    pointer-events: none; 
+    z-index: 1000;
+    text-align: right;
     border: 1px solid rgba(255,255,255,0.1);
 }
 
@@ -142,21 +151,8 @@ h3 { margin: 4px 0; font-size: 0.9rem; text-align: center; color: white; text-sh
 .round-content p { font-size: 1.2rem; color: white; margin: 20px 0; }
 .round-content button { padding: 15px 30px; font-size: 1.1rem; border-radius: 12px; background: #2ecc71; color: #2c3e50; font-weight: 800; border: none; cursor: pointer; width: 100%; box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4); }
 
-/* ESTILOS GANADOR TORNEO (NUEVO) */
-.winner-tournament-title {
-    color: #f1c40f !important;
-    font-size: 2.5rem !important;
-    text-transform: uppercase;
-    text-shadow: 0 0 20px #e67e22, 0 0 40px #d35400;
-    animation: heartBeat 1.5s infinite;
-}
-@keyframes heartBeat {
-    0% { transform: scale(1); }
-    14% { transform: scale(1.1); }
-    28% { transform: scale(1); }
-    42% { transform: scale(1.1); }
-    70% { transform: scale(1); }
-}
+.winner-tournament-title { color: #f1c40f !important; font-size: 2.5rem !important; text-transform: uppercase; text-shadow: 0 0 20px #e67e22, 0 0 40px #d35400; animation: heartBeat 1.5s infinite; }
+@keyframes heartBeat { 0% { transform: scale(1); } 14% { transform: scale(1.1); } 28% { transform: scale(1); } 42% { transform: scale(1.1); } 70% { transform: scale(1); } }
 
 .version-display { position: fixed; bottom: 5px; left: 10px; font-size: 0.7rem; opacity: 0.3; font-family: monospace; color: white; pointer-events: none; z-index: 3000; text-shadow: none; }
 .powered-by-fixed { position: fixed; bottom: 5px; right: 10px; font-size: 0.6rem; opacity: 0.5; }
