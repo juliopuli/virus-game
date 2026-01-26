@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.0.2 ---
+// --- CONFIGURACIÓN V4.0.3 ---
 const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
 const MAX_TRIAL_ROUNDS = 10; 
 
@@ -26,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_2/'; 
+const TOPIC_PREFIX = 'virusgame/v4_0_3/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -44,13 +44,12 @@ function checkLicenseStatus() {
     const trialDiv = document.getElementById('trial-counter');
     if (isPremium) {
         trialDiv.style.display = 'block';
-        trialDiv.innerText = "⭐ VERSIÓN PREMIUM";
-        trialDiv.style.color = "#f1c40f";
+        trialDiv.innerText = "VERSIÓN PREMIUM";
     } else {
         if (roundsPlayed >= MAX_TRIAL_ROUNDS) openLicenseModal(false);
         else {
             trialDiv.style.display = 'block';
-            trialDiv.innerText = `Prueba: ${roundsPlayed} / ${MAX_TRIAL_ROUNDS} rondas`;
+            trialDiv.innerText = `DEMO: ${roundsPlayed} / ${MAX_TRIAL_ROUNDS}`;
         }
     }
 }
@@ -82,7 +81,7 @@ function validateLicense() {
     if (VALID_LICENSES.includes(code)) {
         localStorage.setItem('virus_premium', 'true');
         alert("¡Licencia Activada Correctamente! 🎉");
-        window.location.href = window.location.href; // Recarga segura
+        location.reload();
     } else {
         errorMsg.style.display = 'block';
         input.style.borderColor = 'red';
@@ -103,7 +102,8 @@ function incrementTrialCounter() {
 // --- MENÚ ---
 function startLocalGame() {
     let name = getCleanName();
-    if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!");
+    if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!"); 
+    
     stopNetwork();
     isMultiplayer = false; isHost = true;
     players = [
@@ -177,7 +177,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v402_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v403_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -554,6 +554,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
     let success = false;
     let log = "";
 
+    // LOGICA CARTAS
     if (card.type === 'organ') {
         if (!target.body.find(o => o.color === card.color)) {
             target.body.push({color: card.color, vaccines: 0, infected: false});
@@ -596,17 +597,33 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
+        
+        // --- LÓGICA CORREGIDA V4.0.3 (Anti-Color Duplicado) ---
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
+            
             if (myOrgan && theirOrgan && myOrgan.vaccines < 2 && theirOrgan.vaccines < 2) {
-                actor.body = actor.body.filter(x => x !== myOrgan);
-                target.body = target.body.filter(x => x !== theirOrgan);
-                actor.body.push(theirOrgan);
-                target.body.push(myOrgan);
-                success = true; log = `${actor.name} hizo un trasplante con ${target.name}`;
+                // Chequear duplicados
+                // 1. ¿El actor ya tiene el color que va a recibir (theirOrgan)? (Excluyendo myOrgan que se va)
+                let actorHasColor = actor.body.some(o => o !== myOrgan && o.color === theirOrgan.color);
+                
+                // 2. ¿El objetivo ya tiene el color que va a recibir (myOrgan)? (Excluyendo theirOrgan que se va)
+                let targetHasColor = target.body.some(o => o !== theirOrgan && o.color === myOrgan.color);
+                
+                if (!actorHasColor && !targetHasColor) {
+                    actor.body = actor.body.filter(x => x !== myOrgan);
+                    target.body = target.body.filter(x => x !== theirOrgan);
+                    actor.body.push(theirOrgan);
+                    target.body.push(myOrgan);
+                    success = true; log = `${actor.name} hizo un trasplante con ${target.name}`;
+                } else {
+                    if(pIdx === myPlayerIndex) notify("🚫 Trasplante ilegal: Color repetido");
+                }
             }
         }
+        // ----------------------------------------------------
+
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -715,7 +732,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0);
+    executeDiscard(turnIndex, 0); // FALLBACK
 }
 
 // --- RENDER ---
@@ -875,12 +892,4 @@ function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMess
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
 function confirmMultiDiscard() { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.size === 0) { toggleMultiDiscardMode(); return; } let indices = Array.from(selectedForDiscard).sort((a,b)=>b-a); if(isMultiplayer && !isHost) sendData('MULTI_DISCARD', {playerIndex: myPlayerIndex, indices: indices}); else { const actor = players[myPlayerIndex]; indices.forEach(i => { discardPile.push(actor.hand[i]); actor.hand.splice(i,1); }); refillHand(actor); nextTurn(`${actor.name} descartó ${indices.length} cartas`); } multiDiscardMode = false; selectedForDiscard.clear(); }
-// MODIFICADO: FIX PARA IPHONE Y CONTADOR AL SALIR
-function confirmExit() { 
-    if (confirm("⚠️ ¿Seguro que quieres salir?\n\nContará como una ronda jugada.")) {
-        incrementTrialCounter(); // Penalización
-        setTimeout(() => {
-            window.location.href = window.location.href; // Recarga forzada para iOS
-        }, 100);
-    }
-}
+function confirmExit() { if (confirm("⚠️ ¿Salir de la partida?")) location.reload(); }
