@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.0.4 ---
+// --- CONFIGURACIÓN V4.0.5 ---
 const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
 const MAX_TRIAL_ROUNDS = 10; 
 
@@ -26,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_4/'; // Ajustado a la versión
+const TOPIC_PREFIX = 'virusgame/v4_0_5/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -42,6 +42,11 @@ function checkLicenseStatus() {
     const isPremium = localStorage.getItem('virus_premium') === 'true';
     const roundsPlayed = parseInt(localStorage.getItem('virus_rounds_played') || '0');
     const trialDiv = document.getElementById('trial-counter');
+    
+    // Ocultar botón si es premium
+    const premiumBtn = document.getElementById('btn-activate-premium');
+    if (premiumBtn && isPremium) premiumBtn.style.display = 'none';
+
     if (isPremium) {
         trialDiv.style.display = 'block';
         trialDiv.innerText = "VERSIÓN PREMIUM";
@@ -103,7 +108,6 @@ function incrementTrialCounter() {
 function startLocalGame() {
     let name = getCleanName();
     if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!"); 
-    
     stopNetwork();
     isMultiplayer = false; isHost = true;
     players = [
@@ -133,7 +137,6 @@ function startGameUI() {
     document.getElementById('game-container').classList.remove('blurred');
     document.getElementById('chat-btn').style.display = isMultiplayer ? 'flex' : 'none';
     document.getElementById('restart-btn').style.display = 'block';
-    
     const chatIn = document.getElementById('chat-input');
     const newChatIn = chatIn.cloneNode(true);
     chatIn.parentNode.replaceChild(newChatIn, chatIn);
@@ -177,7 +180,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v404_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v405_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -597,15 +600,13 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
             }
         }
         
-        // --- FIX V4.0.3 (Anti-Duplicados) ---
+        // FIX V4.0.3 (Anti-Duplicados)
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
             if (myOrgan && theirOrgan && myOrgan.vaccines < 2 && theirOrgan.vaccines < 2) {
-                // Chequear si se rompe la regla de colores únicos
                 let actorHasColor = actor.body.some(o => o !== myOrgan && o.color === theirOrgan.color);
                 let targetHasColor = target.body.some(o => o !== theirOrgan && o.color === myOrgan.color);
-                
                 if (!actorHasColor && !targetHasColor) {
                     actor.body = actor.body.filter(x => x !== myOrgan);
                     target.body = target.body.filter(x => x !== theirOrgan);
@@ -617,7 +618,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
-        // -----------------------------------
 
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
@@ -682,13 +682,23 @@ function nextTurn(log) {
 
 function showRoundModal(winner) {
     const modal = document.getElementById('round-modal');
-    document.getElementById('round-title').innerText = `¡${winner.name} GANA!`;
-    document.getElementById('round-message').innerText = `Ha completado su cuerpo sano.`;
+    const title = document.getElementById('round-title');
+    const btn = document.getElementById('next-round-btn');
     
+    // Configurar contenido base
+    document.getElementById('round-message').innerText = `Ha completado su cuerpo sano.`;
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    const btn = document.getElementById('next-round-btn');
+    // --- ESTILO GANADOR TORNEO ---
+    if (winner.wins >= targetWins) {
+        title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
+        title.className = "winner-tournament-title"; // Clase CSS nueva
+    } else {
+        title.innerText = `¡${winner.name} GANA LA RONDA!`;
+        title.className = ""; // Limpiar clase
+    }
+    
     if (isHost) {
         btn.style.display = 'block';
         if (winner.wins >= targetWins) {
@@ -704,6 +714,7 @@ function showRoundModal(winner) {
         btn.disabled = true;
         btn.style.background = "#95a5a6";
     }
+    
     modal.style.display = 'flex';
 }
 
@@ -727,7 +738,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0);
+    executeDiscard(turnIndex, 0); // FALLBACK
 }
 
 // --- RENDER ---
