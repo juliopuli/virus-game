@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.0.5 ---
+// --- CONFIGURACIÓN V4.0.6 ---
 const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
 const MAX_TRIAL_ROUNDS = 10; 
 
@@ -26,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_5/'; 
+const TOPIC_PREFIX = 'virusgame/v4_0_6/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -43,9 +43,9 @@ function checkLicenseStatus() {
     const roundsPlayed = parseInt(localStorage.getItem('virus_rounds_played') || '0');
     const trialDiv = document.getElementById('trial-counter');
     
-    // Ocultar botón si es premium
-    const premiumBtn = document.getElementById('btn-activate-premium');
-    if (premiumBtn && isPremium) premiumBtn.style.display = 'none';
+    // Ocultar botón si ya es Premium
+    const btn = document.getElementById('btn-activate-premium');
+    if (isPremium && btn) btn.style.display = 'none';
 
     if (isPremium) {
         trialDiv.style.display = 'block';
@@ -125,6 +125,9 @@ function showMultiplayerOptions() {
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
     document.querySelector('.meta-container').style.display = 'none';
+    // Ocultar también el botón de licencia en este paso para limpiar
+    const btn = document.getElementById('btn-activate-premium');
+    if(btn) btn.style.display = 'none';
 }
 
 function joinRoomUI() {
@@ -180,7 +183,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v405_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v406_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -599,8 +602,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
-        
-        // FIX V4.0.3 (Anti-Duplicados)
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
@@ -618,7 +619,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
-
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -685,18 +685,17 @@ function showRoundModal(winner) {
     const title = document.getElementById('round-title');
     const btn = document.getElementById('next-round-btn');
     
-    // Configurar contenido base
     document.getElementById('round-message').innerText = `Ha completado su cuerpo sano.`;
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    // --- ESTILO GANADOR TORNEO ---
+    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
-        title.className = "winner-tournament-title"; // Clase CSS nueva
+        title.className = "winner-tournament-title";
     } else {
         title.innerText = `¡${winner.name} GANA LA RONDA!`;
-        title.className = ""; // Limpiar clase
+        title.className = "";
     }
     
     if (isHost) {
@@ -738,7 +737,7 @@ function aiPlay() {
             return;
         }
     }
-    executeDiscard(turnIndex, 0); // FALLBACK
+    executeDiscard(turnIndex, 0);
 }
 
 // --- RENDER ---
