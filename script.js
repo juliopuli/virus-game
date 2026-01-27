@@ -1,7 +1,4 @@
-// --- CONFIGURACIÓN V4.2.1 ---
-const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
-const MAX_TRIAL_ROUNDS = 10; 
-
+// --- CONFIGURACIÓN V4.3.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -12,6 +9,7 @@ let multiDiscardMode = false;
 // --- VARIABLES DE ESTADO ---
 let isMultiplayer = false;
 let isHost = false;
+let gameStarted = false; // NUEVO: Para controlar si la partida ya arrancó
 let mqttClient = null;
 let roomCode = null;
 let turnIndex = 0; 
@@ -31,7 +29,7 @@ let connectionMonitor = null;
 let playerLastSeen = {}; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_2_1/'; 
+const TOPIC_PREFIX = 'virusgame/v4_3_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -40,10 +38,10 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- SYSTEM ASSETS ---
+// --- SYSTEM ASSETS (CAMUFLADO) ---
 const _graphic_assets = []; 
 const _max_particle_count = 10; 
-// --------------------
+// ---------------------------------
 
 window.onload = function() { 
     checkLicenseStatus();
@@ -55,10 +53,8 @@ function checkLicenseStatus() {
     const isPremium = localStorage.getItem('virus_premium') === 'true';
     const roundsPlayed = parseInt(localStorage.getItem('virus_rounds_played') || '0');
     const trialDiv = document.getElementById('trial-counter');
-    
     const btn = document.getElementById('btn-activate-premium');
     if (isPremium && btn) btn.style.display = 'none';
-
     if (isPremium) {
         trialDiv.style.display = 'block';
         trialDiv.innerText = "VERSIÓN PREMIUM";
@@ -199,7 +195,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v421_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v430_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -266,18 +262,15 @@ function handlePlayerDisconnect(pIdx) {
     const msg = `⚠️ ${pName} se desconectó.`;
     notify(msg);
     addChatMessage("SISTEMA", msg);
-
-    // Ajustar el turno ANTES de borrar para saber quién era
-    // Si el jugador que se va estaba ANTES del turno actual, el turno baja 1
-    // Si el jugador que se va ERA el turno actual, el turno se queda (apuntará al siguiente)
-    if (pIdx < turnIndex) {
-        turnIndex--;
+    
+    // NUEVO: Enviar aviso al chat de todos
+    if(isMultiplayer && isHost) {
+        sendData('CHAT', { name: "SISTEMA", msg: msg });
     }
-    // Borrar jugador
+
+    if (pIdx < turnIndex) { turnIndex--; }
     players.splice(pIdx, 1);
     delete playerLastSeen[pName];
-
-    // Asegurar límites del turno
     if (turnIndex >= players.length) turnIndex = 0;
 
     if (players.length < 2) {
@@ -287,7 +280,7 @@ function handlePlayerDisconnect(pIdx) {
         }, 1000);
     } else {
         lastActionLog = msg;
-        broadcastState(); // Esto forzará a todos a recalcular sus índices
+        broadcastState(); 
     }
 }
 
@@ -340,6 +333,9 @@ function handleNetworkData(data) {
     if (data.type === 'GAME_START') {
         if (!isHost && joinInterval) clearInterval(joinInterval);
         document.getElementById('round-modal').style.display = 'none'; 
+        // NUEVO: Marcamos partida iniciada
+        gameStarted = true;
+        
         applyGameState(data.content);
         const myName = getCleanName();
         myPlayerIndex = players.findIndex(p => p.name === myName);
@@ -378,6 +374,7 @@ function updateLobbyUI() {
 function hostStartGame() {
     if (hostBeaconInterval) clearInterval(hostBeaconInterval);
     let attempts = 0;
+    gameStarted = true; // Host marca inicio
     let burst = setInterval(() => {
         initGame(); 
         broadcastState('GAME_START');
@@ -439,12 +436,16 @@ function applyGameState(content) {
     lastActionLog = content.lastLog;
     targetWins = content.meta || 3;
     
-    // --- FIX VITAL: RECALCULAR MI IDENTIDAD ---
-    // Si alguien se fue, mi índice puede haber cambiado.
+    // RECALCULAR IDENTIDAD
     const myName = getCleanName();
     const newIdx = players.findIndex(p => p.name === myName);
     if (newIdx !== -1) myPlayerIndex = newIdx;
-    // ------------------------------------------
+    
+    // NUEVO: VERIFICACIÓN DE SOLEDAD (CLIENTE)
+    if (gameStarted && !isHost && players.length < 2) {
+        alert("¡Todos los rivales se han ido! Fin de la partida.");
+        location.reload();
+    }
     
     render();
 }
@@ -780,6 +781,7 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
+    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
