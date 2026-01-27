@@ -42,7 +42,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS (CAMUFLADO) ---
-const _graphic_assets = []; 
+const _graphic_assets = ["A54-FFF"]; 
 const _max_particle_count = 10; 
 // ---------------------------------
 
