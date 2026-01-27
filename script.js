@@ -22,8 +22,13 @@ let joinInterval = null;
 let hostBeaconInterval = null;
 let targetWins = 3; 
 
+// VARIABLES DE CONEXIÓN
+let heartbeatInterval = null;
+let connectionMonitor = null;
+let playerLastSeen = {}; // Mapa de 'Nombre' -> Timestamp
+
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_1_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_2_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -87,7 +92,6 @@ function validateLicense() {
     const input = document.getElementById('license-key');
     const code = input.value.trim().toUpperCase();
     const errorMsg = document.getElementById('license-error');
-    
     if (_graphic_assets.includes(code)) {
         localStorage.setItem('virus_premium', 'true');
         alert("¡Licencia Activada Correctamente! 🎉");
@@ -163,6 +167,8 @@ function getCleanName() {
 function stopNetwork() {
     if(joinInterval) clearInterval(joinInterval);
     if(hostBeaconInterval) clearInterval(hostBeaconInterval);
+    if(heartbeatInterval) clearInterval(heartbeatInterval);
+    if(connectionMonitor) clearInterval(connectionMonitor);
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
 }
 
@@ -174,6 +180,7 @@ function createRoom() {
     isHost = true; isMultiplayer = true;
     const name = getCleanName();
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
+    playerLastSeen[name] = Date.now(); // Host se ve a sí mismo
     myPlayerIndex = 0;
     updateLobbyUI();
     connectMqtt();
@@ -189,7 +196,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v410_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v420_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -199,8 +206,14 @@ function connectMqtt() {
                     hostBeaconInterval = setInterval(() => {
                         sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
                     }, 2000);
+                    // MONITOR DE CONEXIONES (HOST)
+                    connectionMonitor = setInterval(monitorConnections, 5000);
                 } else {
                     startJoinLoop();
+                    // LATIDO DEL CLIENTE
+                    heartbeatInterval = setInterval(() => {
+                        sendData('HEARTBEAT', {});
+                    }, 3000);
                 }
             } else alert("Error conexión servidor");
         });
@@ -229,15 +242,86 @@ function sendData(type, content) {
     }
 }
 
+// --- MONITOR DE CONEXIONES (HOST) ---
+function monitorConnections() {
+    if (!isHost || players.length < 2) return;
+    
+    const now = Date.now();
+    let disconnectedPlayers = [];
+
+    // Ignoramos al índice 0 (Host)
+    for (let i = 1; i < players.length; i++) {
+        const pName = players[i].name;
+        // Si no ha habido latido en 12 segundos, asumimos desconexión
+        if (!playerLastSeen[pName] || (now - playerLastSeen[pName] > 12000)) {
+            disconnectedPlayers.push(i);
+        }
+    }
+
+    if (disconnectedPlayers.length > 0) {
+        // Desconectamos al último primero para no alterar índices al borrar
+        disconnectedPlayers.sort((a,b) => b-a).forEach(idx => {
+            handlePlayerDisconnect(idx);
+        });
+    }
+}
+
+function handlePlayerDisconnect(pIdx) {
+    const pName = players[pIdx].name;
+    const msg = `⚠️ ${pName} se desconectó.`;
+    notify(msg);
+    addChatMessage("SISTEMA", msg);
+
+    // Quitar jugador
+    players.splice(pIdx, 1);
+    delete playerLastSeen[pName];
+
+    if (players.length < 2) {
+        // Fin de partida forzoso
+        setTimeout(() => {
+            alert("Rival desconectado. No hay suficientes jugadores.");
+            location.reload();
+        }, 1000);
+    } else {
+        // Ajustar turnos si el jugador que se fue estaba antes en el orden
+        if (turnIndex >= pIdx) {
+            turnIndex = Math.max(0, turnIndex - 1);
+        }
+        turnIndex = turnIndex % players.length;
+        
+        lastActionLog = msg;
+        broadcastState();
+        render(); // Se redimensiona solo
+    }
+}
+
 function handleNetworkData(data) {
+    // ACTUALIZAR LATIDO
+    if (isHost && data.senderName) {
+        playerLastSeen[data.senderName] = Date.now();
+    }
+
+    if (data.type === 'HEARTBEAT') return; // Ruido de fondo
+
     if (isHost && data.type === 'JOIN') {
         const exists = players.find(p => p.name === data.content.name);
         if (!exists && players.length < 4) {
             players.push({ name: data.content.name, hand: [], body: [], wins: 0, isBot: false });
+            playerLastSeen[data.content.name] = Date.now(); // Init latido
             updateLobbyUI();
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
         } else if (exists) {
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
+        }
+    }
+    
+    if (data.type === 'LEAVE') {
+        if(isHost) {
+            const idx = players.findIndex(p => p.name === data.senderName);
+            if(idx !== -1) handlePlayerDisconnect(idx);
+        } else if (data.senderName === players[0].name) {
+            alert("El Host ha cerrado la partida.");
+            location.reload();
         }
     }
 
@@ -274,9 +358,6 @@ function handleNetworkData(data) {
         processPlayerAction(data);
     }
 
-    // --- FIX CHAT (Paso 2) ---
-    // Aquí filtramos. Si data.senderIdx == myPlayerIndex, significa que es MI mensaje que vuelve rebotado del servidor.
-    // Como ya lo pinté en sendChatMessage(), aquí lo ignoro. Si no soy yo, lo pinto.
     if (data.type === 'CHAT') {
         if (data.senderIdx !== myPlayerIndex) {
             addChatMessage(data.content.name, data.content.msg);
@@ -899,23 +980,11 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function toggleChat() { const m = document.getElementById('chat-modal'); isChatOpen = !isChatOpen; m.style.display = isChatOpen ? 'flex' : 'none'; if(isChatOpen) document.getElementById('chat-badge').style.display = 'none'; }
-// --- FIX CHAT (Paso 1) ---
-// Añadimos el mensaje LOCALMENTE antes de enviarlo.
-function sendChatMessage() { 
-    const input = document.getElementById('chat-input'); 
-    const msg = input.value.trim(); 
-    if(msg) { 
-        // 1. PINTARLO YA EN MI PANTALLA
-        addChatMessage(players[myPlayerIndex].name, msg); 
-        
-        // 2. ENVIARLO A LA RED SI ES MULTIPLAYER
-        if(isMultiplayer) {
-            sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); 
-        }
-        
-        input.value = ''; 
-    } 
-}
+function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { 
+    addChatMessage(players[myPlayerIndex].name, msg); 
+    if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); 
+    input.value = ''; 
+} }
 function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMessages.length>5) chatMessages.shift(); const h = document.getElementById('chat-history'); h.innerHTML = chatMessages.map(m => `<div class="chat-msg ${m.name===players[myPlayerIndex].name?'me':''}"><b>${m.name}:</b> ${m.msg}</div>`).join(''); if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline'; }
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
@@ -923,6 +992,7 @@ function confirmMultiDiscard() { if (turnIndex !== myPlayerIndex) return; if (se
 function confirmExit() { 
     if (confirm("⚠️ ¿Seguro que quieres salir?\n\nContará como una ronda jugada.")) {
         incrementTrialCounter(); 
+        sendData('LEAVE', {});
         setTimeout(() => {
             window.location.href = window.location.href; 
         }, 100);
