@@ -1,4 +1,7 @@
-// --- CONFIGURACIÓN GENERAL ---
+// --- CONFIGURACIÓN V4.2.1 ---
+const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
+const MAX_TRIAL_ROUNDS = 10; 
+
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -6,7 +9,7 @@ let myPlayerIndex = -1;
 let selectedForDiscard = new Set(); 
 let multiDiscardMode = false; 
 
-// --- ESTADO DEL JUEGO ---
+// --- VARIABLES DE ESTADO ---
 let isMultiplayer = false;
 let isHost = false;
 let mqttClient = null;
@@ -25,10 +28,10 @@ let targetWins = 3;
 // VARIABLES DE CONEXIÓN
 let heartbeatInterval = null;
 let connectionMonitor = null;
-let playerLastSeen = {}; // Mapa de 'Nombre' -> Timestamp
+let playerLastSeen = {}; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_2_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_2_1/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -180,7 +183,7 @@ function createRoom() {
     isHost = true; isMultiplayer = true;
     const name = getCleanName();
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
-    playerLastSeen[name] = Date.now(); // Host se ve a sí mismo
+    playerLastSeen[name] = Date.now(); 
     myPlayerIndex = 0;
     updateLobbyUI();
     connectMqtt();
@@ -196,7 +199,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v420_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v421_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -206,11 +209,9 @@ function connectMqtt() {
                     hostBeaconInterval = setInterval(() => {
                         sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
                     }, 2000);
-                    // MONITOR DE CONEXIONES (HOST)
                     connectionMonitor = setInterval(monitorConnections, 5000);
                 } else {
                     startJoinLoop();
-                    // LATIDO DEL CLIENTE
                     heartbeatInterval = setInterval(() => {
                         sendData('HEARTBEAT', {});
                     }, 3000);
@@ -245,21 +246,15 @@ function sendData(type, content) {
 // --- MONITOR DE CONEXIONES (HOST) ---
 function monitorConnections() {
     if (!isHost || players.length < 2) return;
-    
     const now = Date.now();
     let disconnectedPlayers = [];
-
-    // Ignoramos al índice 0 (Host)
     for (let i = 1; i < players.length; i++) {
         const pName = players[i].name;
-        // Si no ha habido latido en 12 segundos, asumimos desconexión
         if (!playerLastSeen[pName] || (now - playerLastSeen[pName] > 12000)) {
             disconnectedPlayers.push(i);
         }
     }
-
     if (disconnectedPlayers.length > 0) {
-        // Desconectamos al último primero para no alterar índices al borrar
         disconnectedPlayers.sort((a,b) => b-a).forEach(idx => {
             handlePlayerDisconnect(idx);
         });
@@ -272,42 +267,42 @@ function handlePlayerDisconnect(pIdx) {
     notify(msg);
     addChatMessage("SISTEMA", msg);
 
-    // Quitar jugador
+    // Ajustar el turno ANTES de borrar para saber quién era
+    // Si el jugador que se va estaba ANTES del turno actual, el turno baja 1
+    // Si el jugador que se va ERA el turno actual, el turno se queda (apuntará al siguiente)
+    if (pIdx < turnIndex) {
+        turnIndex--;
+    }
+    // Borrar jugador
     players.splice(pIdx, 1);
     delete playerLastSeen[pName];
 
+    // Asegurar límites del turno
+    if (turnIndex >= players.length) turnIndex = 0;
+
     if (players.length < 2) {
-        // Fin de partida forzoso
         setTimeout(() => {
-            alert("Rival desconectado. No hay suficientes jugadores.");
+            alert("Rival desconectado. Fin de la partida.");
             location.reload();
         }, 1000);
     } else {
-        // Ajustar turnos si el jugador que se fue estaba antes en el orden
-        if (turnIndex >= pIdx) {
-            turnIndex = Math.max(0, turnIndex - 1);
-        }
-        turnIndex = turnIndex % players.length;
-        
         lastActionLog = msg;
-        broadcastState();
-        render(); // Se redimensiona solo
+        broadcastState(); // Esto forzará a todos a recalcular sus índices
     }
 }
 
 function handleNetworkData(data) {
-    // ACTUALIZAR LATIDO
     if (isHost && data.senderName) {
         playerLastSeen[data.senderName] = Date.now();
     }
 
-    if (data.type === 'HEARTBEAT') return; // Ruido de fondo
+    if (data.type === 'HEARTBEAT') return; 
 
     if (isHost && data.type === 'JOIN') {
         const exists = players.find(p => p.name === data.content.name);
         if (!exists && players.length < 4) {
             players.push({ name: data.content.name, hand: [], body: [], wins: 0, isBot: false });
-            playerLastSeen[data.content.name] = Date.now(); // Init latido
+            playerLastSeen[data.content.name] = Date.now(); 
             updateLobbyUI();
             sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
         } else if (exists) {
@@ -443,6 +438,14 @@ function applyGameState(content) {
     turnIndex = content.turnIndex;
     lastActionLog = content.lastLog;
     targetWins = content.meta || 3;
+    
+    // --- FIX VITAL: RECALCULAR MI IDENTIDAD ---
+    // Si alguien se fue, mi índice puede haber cambiado.
+    const myName = getCleanName();
+    const newIdx = players.findIndex(p => p.name === myName);
+    if (newIdx !== -1) myPlayerIndex = newIdx;
+    // ------------------------------------------
+    
     render();
 }
 
@@ -777,7 +780,6 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
