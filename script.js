@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.0.6 ---
+// --- CONFIGURACIÓN V4.0.7 ---
 const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
 const MAX_TRIAL_ROUNDS = 10; 
 
@@ -26,7 +26,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_6/'; 
+const TOPIC_PREFIX = 'virusgame/v4_0_7/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -35,8 +35,16 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- SISTEMA DE LICENCIAS ---
-window.onload = function() { checkLicenseStatus(); };
+// --- SISTEMA DE LICENCIAS Y MEMORIA ---
+window.onload = function() { 
+    checkLicenseStatus();
+    
+    // RECUPERAR NOMBRE GUARDADO
+    const savedName = localStorage.getItem('virus_username');
+    if (savedName) {
+        document.getElementById('username').value = savedName;
+    }
+};
 
 function checkLicenseStatus() {
     const isPremium = localStorage.getItem('virus_premium') === 'true';
@@ -108,6 +116,10 @@ function incrementTrialCounter() {
 function startLocalGame() {
     let name = getCleanName();
     if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!"); 
+    
+    // GUARDAR NOMBRE
+    localStorage.setItem('virus_username', name);
+    
     stopNetwork();
     isMultiplayer = false; isHost = true;
     players = [
@@ -120,12 +132,16 @@ function startLocalGame() {
 }
 
 function showMultiplayerOptions() {
-    if(!getCleanName()) return alert("¡Escribe tu nombre!");
+    let name = getCleanName();
+    if(!name) return alert("¡Escribe tu nombre!");
+    
+    // GUARDAR NOMBRE
+    localStorage.setItem('virus_username', name);
+
     document.getElementById('mp-options').style.display = 'block';
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
     document.querySelector('.meta-container').style.display = 'none';
-    // Ocultar también el botón de licencia en este paso para limpiar
     const btn = document.getElementById('btn-activate-premium');
     if(btn) btn.style.display = 'none';
 }
@@ -183,7 +199,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v406_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v407_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
