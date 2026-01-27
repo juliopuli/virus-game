@@ -33,7 +33,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS ---
-const _graphic_assets = ["ALVARO-GUAPO]; 
+const _graphic_assets = ["ALVARO-GUAPO"]; 
 const _max_particle_count = 10; 
 // --------------------
 
@@ -910,4 +910,5 @@ function confirmExit() {
         }, 100);
     }
 }
+
 
