@@ -1,7 +1,4 @@
-// --- CONFIGURACIÓN V4.0.7 ---
-const VALID_LICENSES = ["VIRUS-PRO", "ALJUPA-2026", "VIP-MEMBER", "PABLO-KEY"];
-const MAX_TRIAL_ROUNDS = 10; 
-
+// --- CONFIGURACIÓN GENERAL ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -9,7 +6,7 @@ let myPlayerIndex = -1;
 let selectedForDiscard = new Set(); 
 let multiDiscardMode = false; 
 
-// --- VARIABLES DE ESTADO ---
+// --- ESTADO DEL JUEGO ---
 let isMultiplayer = false;
 let isHost = false;
 let mqttClient = null;
@@ -26,7 +23,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_7/'; 
+const TOPIC_PREFIX = 'virusgame/v4_0_9/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -35,15 +32,15 @@ const icons = {
     treatment: `<svg viewBox="0 0 512 512"><path fill="white" d="M256 0L32 96l32 320 192 96 192-96 32-320L256 0z"/></svg>`
 };
 
-// --- SISTEMA DE LICENCIAS Y MEMORIA ---
+// --- SYSTEM ASSETS ---
+const _graphic_assets = []; 
+const _max_particle_count = 10; 
+// --------------------
+
 window.onload = function() { 
     checkLicenseStatus();
-    
-    // RECUPERAR NOMBRE GUARDADO
     const savedName = localStorage.getItem('virus_username');
-    if (savedName) {
-        document.getElementById('username').value = savedName;
-    }
+    if (savedName) document.getElementById('username').value = savedName;
 };
 
 function checkLicenseStatus() {
@@ -51,7 +48,6 @@ function checkLicenseStatus() {
     const roundsPlayed = parseInt(localStorage.getItem('virus_rounds_played') || '0');
     const trialDiv = document.getElementById('trial-counter');
     
-    // Ocultar botón si ya es Premium
     const btn = document.getElementById('btn-activate-premium');
     if (isPremium && btn) btn.style.display = 'none';
 
@@ -59,10 +55,10 @@ function checkLicenseStatus() {
         trialDiv.style.display = 'block';
         trialDiv.innerText = "VERSIÓN PREMIUM";
     } else {
-        if (roundsPlayed >= MAX_TRIAL_ROUNDS) openLicenseModal(false);
+        if (roundsPlayed >= _max_particle_count) openLicenseModal(false);
         else {
             trialDiv.style.display = 'block';
-            trialDiv.innerText = `DEMO: ${roundsPlayed} / ${MAX_TRIAL_ROUNDS}`;
+            trialDiv.innerText = `DEMO: ${roundsPlayed} / ${_max_particle_count}`;
         }
     }
 }
@@ -82,7 +78,7 @@ function openLicenseModal(isVoluntary = false) {
     } else {
         let existingClose = document.querySelector('.close-license-btn');
         if (existingClose) existingClose.remove();
-        msg.innerHTML = `⛔ <b>¡Prueba Finalizada!</b><br>Has jugado tus ${MAX_TRIAL_ROUNDS} rondas.<br>Introduce una licencia para seguir.`;
+        msg.innerHTML = `⛔ <b>¡Prueba Finalizada!</b><br>Has jugado tus ${_max_particle_count} rondas.<br>Introduce una licencia para seguir.`;
     }
     modal.style.display = 'flex';
 }
@@ -91,7 +87,8 @@ function validateLicense() {
     const input = document.getElementById('license-key');
     const code = input.value.trim().toUpperCase();
     const errorMsg = document.getElementById('license-error');
-    if (VALID_LICENSES.includes(code)) {
+    
+    if (_graphic_assets.includes(code)) {
         localStorage.setItem('virus_premium', 'true');
         alert("¡Licencia Activada Correctamente! 🎉");
         location.reload();
@@ -112,14 +109,11 @@ function incrementTrialCounter() {
     }
 }
 
-// --- MENÚ ---
+// --- LOGICA DE JUEGO ---
 function startLocalGame() {
     let name = getCleanName();
     if (!name || name === "") return alert("¡Debes poner tu nombre para jugar!"); 
-    
-    // GUARDAR NOMBRE
     localStorage.setItem('virus_username', name);
-    
     stopNetwork();
     isMultiplayer = false; isHost = true;
     players = [
@@ -134,10 +128,7 @@ function startLocalGame() {
 function showMultiplayerOptions() {
     let name = getCleanName();
     if(!name) return alert("¡Escribe tu nombre!");
-    
-    // GUARDAR NOMBRE
     localStorage.setItem('virus_username', name);
-
     document.getElementById('mp-options').style.display = 'block';
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
@@ -175,7 +166,6 @@ function stopNetwork() {
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
 }
 
-// --- RED (MQTT) ---
 function createRoom() {
     roomCode = Math.floor(100000 + Math.random() * 900000).toString();
     document.getElementById('my-code').innerText = roomCode;
@@ -199,7 +189,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v407_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v409_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -318,7 +308,6 @@ function hostStartGame() {
     startGameUI(); 
 }
 
-// --- JUEGO ---
 function initGame() {
     if(deck.length === 0) {
         deck = []; discardPile = [];
@@ -387,7 +376,6 @@ function refillHand(player) {
     visualDeckCount = deck.length;
 }
 
-// --- ACCIONES ---
 function playCard(cardIndex) {
     if (multiDiscardMode) { toggleSelection(cardIndex); return; }
     if (turnIndex !== myPlayerIndex) { notify("⛔ No es tu turno"); return; }
@@ -618,6 +606,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
+        
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
@@ -635,6 +624,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
+
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -705,7 +695,6 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
