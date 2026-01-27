@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.3.0 ---
+// --- CONFIGURACIÓN V4.3.1 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -9,7 +9,7 @@ let multiDiscardMode = false;
 // --- VARIABLES DE ESTADO ---
 let isMultiplayer = false;
 let isHost = false;
-let gameStarted = false; // NUEVO: Para controlar si la partida ya arrancó
+let gameStarted = false; 
 let mqttClient = null;
 let roomCode = null;
 let turnIndex = 0; 
@@ -20,16 +20,19 @@ let pendingAction = null;
 let transplantSource = null;
 let visualDeckCount = 0;
 let joinInterval = null;
-let hostBeaconInterval = null;
+let hostBeaconInterval = null; // Lobby beacon
 let targetWins = 3; 
 
-// VARIABLES DE CONEXIÓN
-let heartbeatInterval = null;
-let connectionMonitor = null;
+// VARIABLES DE CONEXIÓN Y SEGURIDAD
+let heartbeatInterval = null;   // Clientes dicen "estoy vivo"
+let hostPulseInterval = null;   // Host dice "estoy vivo"
+let connectionMonitor = null;   // Host vigila a clientes
+let clientWatchdog = null;      // Clientes vigilan al Host
 let playerLastSeen = {}; 
+let lastHostTime = 0;           // Última vez que supimos del Host
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_3_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_3_1/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -168,6 +171,8 @@ function stopNetwork() {
     if(hostBeaconInterval) clearInterval(hostBeaconInterval);
     if(heartbeatInterval) clearInterval(heartbeatInterval);
     if(connectionMonitor) clearInterval(connectionMonitor);
+    if(hostPulseInterval) clearInterval(hostPulseInterval);
+    if(clientWatchdog) clearInterval(clientWatchdog);
     if(mqttClient) { mqttClient.end(); mqttClient = null; }
 }
 
@@ -195,22 +200,30 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v430_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v431_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
         mqttClient.subscribe(`${TOPIC_PREFIX}${roomCode}`, { qos: 1 }, (err) => {
             if (!err) {
+                // INICIO DE TIMERS
                 if (isHost) {
-                    hostBeaconInterval = setInterval(() => {
-                        sendData('LOBBY_UPDATE', { names: players.map(p => p.name) });
-                    }, 2000);
-                    connectionMonitor = setInterval(monitorConnections, 5000);
+                    hostBeaconInterval = setInterval(() => { sendData('LOBBY_UPDATE', { names: players.map(p => p.name) }); }, 2000);
+                    connectionMonitor = setInterval(monitorConnections, 5000); // Vigila clientes
+                    // Host Pulse: Avisa "Estoy vivo" siempre
+                    hostPulseInterval = setInterval(() => { sendData('HOST_PULSE', {}); }, 4000);
                 } else {
                     startJoinLoop();
-                    heartbeatInterval = setInterval(() => {
-                        sendData('HEARTBEAT', {});
-                    }, 3000);
+                    heartbeatInterval = setInterval(() => { sendData('HEARTBEAT', {}); }, 3000); // Cliente "Estoy vivo"
+                    
+                    // VIGILANTE DE HOST (Nuevo en 4.3.1)
+                    lastHostTime = Date.now();
+                    clientWatchdog = setInterval(() => {
+                        if (Date.now() - lastHostTime > 12000) { // 12 segundos sin noticias del host
+                            alert("❌ Conexión con el Host perdida.");
+                            location.reload();
+                        }
+                    }, 5000);
                 }
             } else alert("Error conexión servidor");
         });
@@ -263,7 +276,6 @@ function handlePlayerDisconnect(pIdx) {
     notify(msg);
     addChatMessage("SISTEMA", msg);
     
-    // NUEVO: Enviar aviso al chat de todos
     if(isMultiplayer && isHost) {
         sendData('CHAT', { name: "SISTEMA", msg: msg });
     }
@@ -285,11 +297,16 @@ function handlePlayerDisconnect(pIdx) {
 }
 
 function handleNetworkData(data) {
+    // --- ACTUALIZAR TIMESTAMP HOST (CLIENTE) ---
+    if (!isHost && (data.senderIdx === 0 || data.type === 'HOST_PULSE' || data.type === 'STATE_UPDATE' || data.type === 'LOBBY_UPDATE')) {
+        lastHostTime = Date.now();
+    }
+    // --- ACTUALIZAR TIMESTAMP CLIENTES (HOST) ---
     if (isHost && data.senderName) {
         playerLastSeen[data.senderName] = Date.now();
     }
 
-    if (data.type === 'HEARTBEAT') return; 
+    if (data.type === 'HEARTBEAT' || data.type === 'HOST_PULSE') return; 
 
     if (isHost && data.type === 'JOIN') {
         const exists = players.find(p => p.name === data.content.name);
@@ -333,9 +350,7 @@ function handleNetworkData(data) {
     if (data.type === 'GAME_START') {
         if (!isHost && joinInterval) clearInterval(joinInterval);
         document.getElementById('round-modal').style.display = 'none'; 
-        // NUEVO: Marcamos partida iniciada
         gameStarted = true;
-        
         applyGameState(data.content);
         const myName = getCleanName();
         myPlayerIndex = players.findIndex(p => p.name === myName);
@@ -441,7 +456,7 @@ function applyGameState(content) {
     const newIdx = players.findIndex(p => p.name === myName);
     if (newIdx !== -1) myPlayerIndex = newIdx;
     
-    // NUEVO: VERIFICACIÓN DE SOLEDAD (CLIENTE)
+    // VERIFICACIÓN DE SOLEDAD (CLIENTE)
     if (gameStarted && !isHost && players.length < 2) {
         alert("¡Todos los rivales se han ido! Fin de la partida.");
         location.reload();
