@@ -23,7 +23,7 @@ let hostBeaconInterval = null;
 let targetWins = 3; 
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_0_9/'; 
+const TOPIC_PREFIX = 'virusgame/v4_1_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -33,7 +33,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS ---
-const _graphic_assets = ["XJHHHF2-ASED3F"]; 
+const _graphic_assets = []; 
 const _max_particle_count = 10; 
 // --------------------
 
@@ -189,7 +189,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v409_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v410_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -274,6 +274,9 @@ function handleNetworkData(data) {
         processPlayerAction(data);
     }
 
+    // --- FIX CHAT (Paso 2) ---
+    // Aquí filtramos. Si data.senderIdx == myPlayerIndex, significa que es MI mensaje que vuelve rebotado del servidor.
+    // Como ya lo pinté en sendChatMessage(), aquí lo ignoro. Si no soy yo, lo pinto.
     if (data.type === 'CHAT') {
         if (data.senderIdx !== myPlayerIndex) {
             addChatMessage(data.content.name, data.content.msg);
@@ -606,7 +609,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
-        
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
@@ -624,7 +626,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
-
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -695,6 +696,7 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
+    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
@@ -897,7 +899,23 @@ function renderBody(body, container, ownerIndex) {
 
 function notify(msg) { document.getElementById('notification-bar').innerText = msg; }
 function toggleChat() { const m = document.getElementById('chat-modal'); isChatOpen = !isChatOpen; m.style.display = isChatOpen ? 'flex' : 'none'; if(isChatOpen) document.getElementById('chat-badge').style.display = 'none'; }
-function sendChatMessage() { const input = document.getElementById('chat-input'); const msg = input.value.trim(); if(msg) { if(isMultiplayer) sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); else addChatMessage(players[myPlayerIndex].name, msg); input.value = ''; } }
+// --- FIX CHAT (Paso 1) ---
+// Añadimos el mensaje LOCALMENTE antes de enviarlo.
+function sendChatMessage() { 
+    const input = document.getElementById('chat-input'); 
+    const msg = input.value.trim(); 
+    if(msg) { 
+        // 1. PINTARLO YA EN MI PANTALLA
+        addChatMessage(players[myPlayerIndex].name, msg); 
+        
+        // 2. ENVIARLO A LA RED SI ES MULTIPLAYER
+        if(isMultiplayer) {
+            sendData('CHAT', { name: players[myPlayerIndex].name, msg: msg }); 
+        }
+        
+        input.value = ''; 
+    } 
+}
 function addChatMessage(name, msg) { chatMessages.push({name, msg}); if(chatMessages.length>5) chatMessages.shift(); const h = document.getElementById('chat-history'); h.innerHTML = chatMessages.map(m => `<div class="chat-msg ${m.name===players[myPlayerIndex].name?'me':''}"><b>${m.name}:</b> ${m.msg}</div>`).join(''); if(!isChatOpen) document.getElementById('chat-badge').style.display = 'inline'; }
 function toggleMultiDiscardMode() { multiDiscardMode = !multiDiscardMode; selectedForDiscard.clear(); render(); }
 function toggleSelection(i) { if (turnIndex !== myPlayerIndex) return; if (selectedForDiscard.has(i)) selectedForDiscard.delete(i); else selectedForDiscard.add(i); render(); }
@@ -910,6 +928,3 @@ function confirmExit() {
         }, 100);
     }
 }
-
-
-
