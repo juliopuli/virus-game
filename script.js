@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.6.0 ---
+// --- CONFIGURACIÓN V4.7.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -13,6 +13,7 @@ let gameStarted = false;
 let mqttClient = null;
 let roomCode = null;
 let turnIndex = 0; 
+let roundStarter = 0; // NUEVO: Índice del jugador que empieza la ronda
 let lastActionLog = "Esperando inicio...";
 let chatMessages = [];
 let isChatOpen = false;
@@ -32,7 +33,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_6_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_7_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -127,6 +128,7 @@ function startLocalGame() {
         { name: "JULIO", hand: [], body: [], wins: 0, isBot: true }
     ];
     myPlayerIndex = 0;
+    roundStarter = 0; // Reiniciar rotación al empezar partida nueva
     startGameUI(); 
     initGame();
 }
@@ -186,6 +188,7 @@ function createRoom() {
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     playerLastSeen[name] = Date.now(); 
     myPlayerIndex = 0;
+    roundStarter = 0; // Reiniciar rotación al crear sala
     updateLobbyUI();
     connectMqtt();
 }
@@ -200,7 +203,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v460_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v470_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -279,6 +282,9 @@ function handlePlayerDisconnect(pIdx) {
     players.splice(pIdx, 1);
     delete playerLastSeen[pName];
     if (turnIndex >= players.length) turnIndex = 0;
+
+    // Ajustar roundStarter si es necesario para que no apunte a un índice inválido
+    if (roundStarter >= players.length) roundStarter = 0;
 
     if (players.length < 2) {
         setTimeout(() => {
@@ -409,8 +415,9 @@ function initGame() {
             for(let i=0; i<3; i++) p.hand.push(deck.pop());
         });
 
-        turnIndex = 0;
-        lastActionLog = "¡Empieza la partida!";
+        // ROTACIÓN DE JUGADOR INICIAL
+        turnIndex = roundStarter; // Empieza quien toca
+        lastActionLog = `¡Ronda para ${players[turnIndex].name}!`;
         visualDeckCount = deck.length; 
         
         if(isHost) {
@@ -541,8 +548,6 @@ function scanTargets(card) {
                 if (pIdx !== myPlayerIndex) {
                     p.body.forEach(o => {
                         if (!o.infected && o.vaccines === 0) {
-                            // COMPATIBILIDAD ESTRICTA:
-                            // Fuente tiene virus compatible con Destino.
                             if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
                                 targets.push({pIdx: pIdx, color: o.color});
                             }
@@ -691,19 +696,15 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
             }
         }
         
-        // --- CONTAGIO CORREGIDO V4.6.0 ---
         if (card.name === 'Contagio') {
             let dest = target.body.find(x => x.color === tColor);
-            // Buscar un órgano infectado en mi cuerpo que sea COMPATIBLE con el destino.
             let source = actor.body.find(x => x.infected && (x.color === tColor || x.color === 'multicolor' || dest.color === 'multicolor'));
-            
             if (dest && source && !dest.infected && dest.vaccines === 0) {
                 source.infected = false;
                 dest.infected = true;
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
-        // --------------------------------
 
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
@@ -804,10 +805,14 @@ function showRoundModal(winner) {
         btn.style.display = 'block';
         if (winner.wins >= targetWins) {
             btn.innerText = "NUEVO TORNEO";
-            btn.onclick = () => { deck=[]; discardPile=[]; players.forEach(p=>p.wins=0); continueGame(); };
+            btn.onclick = () => { deck=[]; discardPile=[]; players.forEach(p=>p.wins=0); roundStarter=0; continueGame(); };
         } else {
             btn.innerText = "SIGUIENTE RONDA";
-            btn.onclick = continueGame;
+            btn.onclick = () => {
+                // ACTUALIZAR ROTACIÓN
+                roundStarter = (roundStarter + 1) % players.length;
+                continueGame();
+            };
         }
     } else {
         btn.style.display = 'block';
