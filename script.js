@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.3.1 ---
+// --- CONFIGURACIÓN V4.4.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -20,19 +20,19 @@ let pendingAction = null;
 let transplantSource = null;
 let visualDeckCount = 0;
 let joinInterval = null;
-let hostBeaconInterval = null; // Lobby beacon
+let hostBeaconInterval = null; 
 let targetWins = 3; 
 
-// VARIABLES DE CONEXIÓN Y SEGURIDAD
-let heartbeatInterval = null;   // Clientes dicen "estoy vivo"
-let hostPulseInterval = null;   // Host dice "estoy vivo"
-let connectionMonitor = null;   // Host vigila a clientes
-let clientWatchdog = null;      // Clientes vigilan al Host
+// VARIABLES DE CONEXIÓN
+let heartbeatInterval = null;   
+let hostPulseInterval = null;   
+let connectionMonitor = null;   
+let clientWatchdog = null;      
 let playerLastSeen = {}; 
-let lastHostTime = 0;           // Última vez que supimos del Host
+let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_3_1/'; 
+const TOPIC_PREFIX = 'virusgame/v4_4_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -42,7 +42,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS (CAMUFLADO) ---
-const _graphic_assets = ["A54-FFF"]; 
+const _graphic_assets = []; 
 const _max_particle_count = 10; 
 // ---------------------------------
 
@@ -200,26 +200,22 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v431_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v440_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
         mqttClient.subscribe(`${TOPIC_PREFIX}${roomCode}`, { qos: 1 }, (err) => {
             if (!err) {
-                // INICIO DE TIMERS
                 if (isHost) {
                     hostBeaconInterval = setInterval(() => { sendData('LOBBY_UPDATE', { names: players.map(p => p.name) }); }, 2000);
-                    connectionMonitor = setInterval(monitorConnections, 5000); // Vigila clientes
-                    // Host Pulse: Avisa "Estoy vivo" siempre
+                    connectionMonitor = setInterval(monitorConnections, 5000); 
                     hostPulseInterval = setInterval(() => { sendData('HOST_PULSE', {}); }, 4000);
                 } else {
                     startJoinLoop();
-                    heartbeatInterval = setInterval(() => { sendData('HEARTBEAT', {}); }, 3000); // Cliente "Estoy vivo"
-                    
-                    // VIGILANTE DE HOST (Nuevo en 4.3.1)
+                    heartbeatInterval = setInterval(() => { sendData('HEARTBEAT', {}); }, 3000); 
                     lastHostTime = Date.now();
                     clientWatchdog = setInterval(() => {
-                        if (Date.now() - lastHostTime > 12000) { // 12 segundos sin noticias del host
+                        if (Date.now() - lastHostTime > 12000) { 
                             alert("❌ Conexión con el Host perdida.");
                             location.reload();
                         }
@@ -252,7 +248,6 @@ function sendData(type, content) {
     }
 }
 
-// --- MONITOR DE CONEXIONES (HOST) ---
 function monitorConnections() {
     if (!isHost || players.length < 2) return;
     const now = Date.now();
@@ -297,11 +292,9 @@ function handlePlayerDisconnect(pIdx) {
 }
 
 function handleNetworkData(data) {
-    // --- ACTUALIZAR TIMESTAMP HOST (CLIENTE) ---
     if (!isHost && (data.senderIdx === 0 || data.type === 'HOST_PULSE' || data.type === 'STATE_UPDATE' || data.type === 'LOBBY_UPDATE')) {
         lastHostTime = Date.now();
     }
-    // --- ACTUALIZAR TIMESTAMP CLIENTES (HOST) ---
     if (isHost && data.senderName) {
         playerLastSeen[data.senderName] = Date.now();
     }
@@ -389,7 +382,7 @@ function updateLobbyUI() {
 function hostStartGame() {
     if (hostBeaconInterval) clearInterval(hostBeaconInterval);
     let attempts = 0;
-    gameStarted = true; // Host marca inicio
+    gameStarted = true; 
     let burst = setInterval(() => {
         initGame(); 
         broadcastState('GAME_START');
@@ -450,18 +443,13 @@ function applyGameState(content) {
     turnIndex = content.turnIndex;
     lastActionLog = content.lastLog;
     targetWins = content.meta || 3;
-    
-    // RECALCULAR IDENTIDAD
     const myName = getCleanName();
     const newIdx = players.findIndex(p => p.name === myName);
     if (newIdx !== -1) myPlayerIndex = newIdx;
-    
-    // VERIFICACIÓN DE SOLEDAD (CLIENTE)
     if (gameStarted && !isHost && players.length < 2) {
         alert("¡Todos los rivales se han ido! Fin de la partida.");
         location.reload();
     }
-    
     render();
 }
 
@@ -796,7 +784,6 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
@@ -836,15 +823,131 @@ function checkAiTurn() {
     }
 }
 
+// --- NUEVA IA (V4.4) ---
 function aiPlay() {
     const bot = players[turnIndex];
-    for (let i=0; i<bot.hand.length; i++) {
-        if (bot.hand[i].type === 'organ' && !bot.body.find(o=>o.color===bot.hand[i].color)) {
-            executeMove(turnIndex, i, turnIndex, bot.hand[i].color, null);
-            return;
+    const hand = bot.hand;
+    let played = false;
+
+    // 1. PRIORIDAD: GANAR YA (Poner 4º órgano)
+    if (!played) {
+        for (let i = 0; i < hand.length; i++) {
+            if (hand[i].type === 'organ' && !bot.body.find(o => o.color === hand[i].color)) {
+                let healthyCount = bot.body.filter(o => !o.infected).length;
+                if (healthyCount === 3) { // Si ya tengo 3, este es el 4º
+                    executeMove(turnIndex, i, turnIndex, hand[i].color, null);
+                    return;
+                }
+            }
         }
     }
-    executeDiscard(turnIndex, 0);
+
+    // 2. PRIORIDAD: DEFENDERSE (Curar o Inmunizar)
+    if (!played) {
+        for (let i = 0; i < hand.length; i++) {
+            if (hand[i].type === 'medicine') {
+                // Prioridad A: Inmunizar (tengo 1 vacuna)
+                let organToImmunize = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines === 1 && !o.infected);
+                if (organToImmunize) {
+                    executeMove(turnIndex, i, turnIndex, organToImmunize.color, null);
+                    return;
+                }
+                // Prioridad B: Curar infección
+                let organToCure = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.infected);
+                if (organToCure) {
+                    executeMove(turnIndex, i, turnIndex, organToCure.color, null);
+                    return;
+                }
+                // Prioridad C: Vacunar órgano limpio
+                let organToVac = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines === 0 && !o.infected);
+                if (organToVac) {
+                    executeMove(turnIndex, i, turnIndex, organToVac.color, null);
+                    return;
+                }
+            }
+        }
+    }
+
+    // 3. PRIORIDAD: ATACAR (Al líder o al que pueda)
+    if (!played) {
+        // Encontrar al líder (quien no sea yo y tenga más órganos sanos)
+        let bestTargetIdx = -1;
+        let maxOrgans = -1;
+        players.forEach((p, idx) => {
+            if (idx !== turnIndex) {
+                let count = p.body.filter(o => !o.infected).length;
+                if (count > maxOrgans) { maxOrgans = count; bestTargetIdx = idx; }
+            }
+        });
+
+        if (bestTargetIdx !== -1) {
+            for (let i = 0; i < hand.length; i++) {
+                if (hand[i].type === 'virus') {
+                    // Intentar atacar al líder
+                    let targetBody = players[bestTargetIdx].body;
+                    let targetOrgan = targetBody.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
+                    if (targetOrgan) {
+                        executeMove(turnIndex, i, bestTargetIdx, targetOrgan.color, null);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. PRIORIDAD: CARTAS ESPECIALES
+    if (!played) {
+        for (let i = 0; i < hand.length; i++) {
+            if (hand[i].name === 'Ladrón') {
+                // Robar un órgano que me falte (y no esté inmunizado)
+                for (let pIdx = 0; pIdx < players.length; pIdx++) {
+                    if (pIdx !== turnIndex) {
+                        let stealable = players[pIdx].body.find(o => o.vaccines < 2 && !bot.body.some(my => my.color === o.color));
+                        if (stealable) {
+                            executeMove(turnIndex, i, pIdx, stealable.color, null);
+                            return;
+                        }
+                    }
+                }
+            }
+            if (hand[i].name === 'Trasplante') {
+                // Si tengo un órgano "malo" (infectado) o repetido en mano, y el otro tiene uno bueno que me falta
+                // (Simplificado: Si el rival tiene uno que me falta y no está inmunizado)
+                for (let pIdx = 0; pIdx < players.length; pIdx++) {
+                    if (pIdx !== turnIndex) {
+                        let wanted = players[pIdx].body.find(o => o.vaccines < 2 && !bot.body.some(my => my.color === o.color));
+                        let unwanted = bot.body.find(o => o.infected || o.vaccines === 0);
+                        if (wanted && unwanted) {
+                            executeMove(turnIndex, i, pIdx, wanted.color, unwanted.color); // extra es mi organo
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // 5. PRIORIDAD: CRECER (Poner órgano)
+    if (!played) {
+        for (let i = 0; i < hand.length; i++) {
+            if (hand[i].type === 'organ' && !bot.body.find(o => o.color === hand[i].color)) {
+                executeMove(turnIndex, i, turnIndex, hand[i].color, null);
+                return;
+            }
+        }
+    }
+
+    // 6. PRIORIDAD: DESCARTAR (Inteligente)
+    // Descartar primero órganos que ya tengo o cartas inútiles
+    if (!played) {
+        for (let i = 0; i < hand.length; i++) {
+            if (hand[i].type === 'organ' && bot.body.find(o => o.color === hand[i].color)) {
+                executeDiscard(turnIndex, i); // Descartar repetido
+                return;
+            }
+        }
+        executeDiscard(turnIndex, 0); // Descartar la primera si nada más sirve
+    }
 }
 
 // --- RENDER ---
