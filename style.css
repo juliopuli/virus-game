@@ -51,12 +51,11 @@ body {
 }
 .license-btn:hover { background: #2ecc71; box-shadow: 0 0 15px #2ecc71; }
 
-/* AJUSTE POSICIÓN DEMO/PREMIUM V4.0.6 */
 .trial-info {
     position: fixed; 
-    bottom: 5px;  /* Misma altura que la versión */
-    right: 10px;  /* A la derecha */
-    left: auto;   /* Quitamos la izquierda */
+    bottom: 5px; 
+    right: 10px; 
+    left: auto;
     background: rgba(0,0,0,0.6); 
     color: #f1c40f; 
     padding: 4px 10px; 
