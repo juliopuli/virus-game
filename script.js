@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.5.0 ---
+// --- CONFIGURACIÓN V4.6.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -32,7 +32,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_5_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_6_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -200,7 +200,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v450_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v460_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -541,6 +541,8 @@ function scanTargets(card) {
                 if (pIdx !== myPlayerIndex) {
                     p.body.forEach(o => {
                         if (!o.infected && o.vaccines === 0) {
+                            // COMPATIBILIDAD ESTRICTA:
+                            // Fuente tiene virus compatible con Destino.
                             if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
                                 targets.push({pIdx: pIdx, color: o.color});
                             }
@@ -688,16 +690,21 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} robó órgano a ${target.name}`;
             }
         }
+        
+        // --- CONTAGIO CORREGIDO V4.6.0 ---
         if (card.name === 'Contagio') {
             let dest = target.body.find(x => x.color === tColor);
-            let source = actor.body.find(x => (x.color === tColor || x.color === 'multicolor' || dest.color === 'multicolor') && x.infected);
+            // Buscar un órgano infectado en mi cuerpo que sea COMPATIBLE con el destino.
+            let source = actor.body.find(x => x.infected && (x.color === tColor || x.color === 'multicolor' || dest.color === 'multicolor'));
+            
             if (dest && source && !dest.infected && dest.vaccines === 0) {
                 source.infected = false;
                 dest.infected = true;
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
-        
+        // --------------------------------
+
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
@@ -715,7 +722,6 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
-
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -786,7 +792,6 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
@@ -826,7 +831,7 @@ function checkAiTurn() {
     }
 }
 
-// --- NUEVA IA INTELIGENTE V4.5 ---
+// --- IA INTELIGENTE ---
 function aiPlay() {
     const bot = players[turnIndex];
     const hand = bot.hand;
@@ -913,17 +918,14 @@ function aiPlay() {
         }
     }
 
-    // 6. DESCARTE TACTICO MASIVO (NUEVO)
+    // 6. DESCARTE TACTICO MASIVO
     if (!played) {
         let discardIndices = [];
-        // Buscar cartas inútiles (órganos repetidos)
         for(let i=0; i<hand.length; i++) {
             if(hand[i].type === 'organ' && bot.body.find(o => o.color === hand[i].color)) {
                 discardIndices.push(i);
             }
         }
-
-        // Si hay cartas basura, tirarlas todas
         if (discardIndices.length > 0) {
             discardIndices.sort((a,b) => b-a);
             discardIndices.forEach(idx => {
@@ -934,8 +936,6 @@ function aiPlay() {
             nextTurn(`${bot.name} descartó ${discardIndices.length} cartas`);
             return;
         }
-
-        // Si no hay basura obvia, tirar la primera
         executeDiscard(turnIndex, 0);
     }
 }
@@ -1060,7 +1060,7 @@ function renderBody(body, container, ownerIndex) {
             } else if (card.name === 'Contagio') {
                 if (ownerIndex !== myPlayerIndex && !o.infected && o.vaccines === 0) {
                     const me = players[myPlayerIndex];
-                    if (me.body.some(my => (my.color === o.color || my.color === 'multicolor' || o.color === 'multicolor') && my.infected)) isValid = true;
+                    if (me.body.some(my => my.infected && (my.color === o.color || my.color === 'multicolor' || o.color === 'multicolor'))) isValid = true;
                 }
             } else if (card.name === 'Trasplante') {
                 if (!transplantSource) {
