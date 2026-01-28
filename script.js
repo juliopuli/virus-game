@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.4.1 ---
+// --- CONFIGURACIÓN V4.5.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -32,7 +32,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_4_1/'; 
+const TOPIC_PREFIX = 'virusgame/v4_5_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -200,7 +200,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v441_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v450_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -697,6 +697,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 success = true; log = `${actor.name} contagió a ${target.name}`;
             }
         }
+        
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
             let theirOrgan = target.body.find(x => x.color === tColor);
@@ -714,6 +715,7 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
                 }
             }
         }
+
         if (card.name === 'Guante de Látex') {
             players.forEach(p => { 
                 if(p !== actor) { 
@@ -784,6 +786,7 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
+    // ESTILO GANADOR
     if (winner.wins >= targetWins) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
@@ -823,12 +826,13 @@ function checkAiTurn() {
     }
 }
 
+// --- NUEVA IA INTELIGENTE V4.5 ---
 function aiPlay() {
     const bot = players[turnIndex];
     const hand = bot.hand;
     let played = false;
 
-    // 1. PRIORIDAD: GANAR YA (Poner 4º órgano)
+    // 1. GANAR
     if (!played) {
         for (let i = 0; i < hand.length; i++) {
             if (hand[i].type === 'organ' && !bot.body.find(o => o.color === hand[i].color)) {
@@ -841,33 +845,21 @@ function aiPlay() {
         }
     }
 
-    // 2. PRIORIDAD: DEFENDERSE
+    // 2. DEFENSA
     if (!played) {
         for (let i = 0; i < hand.length; i++) {
             if (hand[i].type === 'medicine') {
-                // Inmunizar
                 let organToImmunize = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines === 1 && !o.infected);
-                if (organToImmunize) {
-                    executeMove(turnIndex, i, turnIndex, organToImmunize.color, null);
-                    return;
-                }
-                // Curar
+                if (organToImmunize) { executeMove(turnIndex, i, turnIndex, organToImmunize.color, null); return; }
                 let organToCure = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.infected);
-                if (organToCure) {
-                    executeMove(turnIndex, i, turnIndex, organToCure.color, null);
-                    return;
-                }
-                // Vacunar
+                if (organToCure) { executeMove(turnIndex, i, turnIndex, organToCure.color, null); return; }
                 let organToVac = bot.body.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines === 0 && !o.infected);
-                if (organToVac) {
-                    executeMove(turnIndex, i, turnIndex, organToVac.color, null);
-                    return;
-                }
+                if (organToVac) { executeMove(turnIndex, i, turnIndex, organToVac.color, null); return; }
             }
         }
     }
 
-    // 3. PRIORIDAD: ATACAR
+    // 3. ATAQUE
     if (!played) {
         let bestTargetIdx = -1;
         let maxOrgans = -1;
@@ -877,32 +869,25 @@ function aiPlay() {
                 if (count > maxOrgans) { maxOrgans = count; bestTargetIdx = idx; }
             }
         });
-
         if (bestTargetIdx !== -1) {
             for (let i = 0; i < hand.length; i++) {
                 if (hand[i].type === 'virus') {
                     let targetBody = players[bestTargetIdx].body;
                     let targetOrgan = targetBody.find(o => (o.color === hand[i].color || hand[i].color === 'multicolor' || o.color === 'multicolor') && o.vaccines < 2);
-                    if (targetOrgan) {
-                        executeMove(turnIndex, i, bestTargetIdx, targetOrgan.color, null);
-                        return;
-                    }
+                    if (targetOrgan) { executeMove(turnIndex, i, bestTargetIdx, targetOrgan.color, null); return; }
                 }
             }
         }
     }
 
-    // 4. PRIORIDAD: CARTAS ESPECIALES
+    // 4. ESPECIALES
     if (!played) {
         for (let i = 0; i < hand.length; i++) {
             if (hand[i].name === 'Ladrón') {
                 for (let pIdx = 0; pIdx < players.length; pIdx++) {
                     if (pIdx !== turnIndex) {
                         let stealable = players[pIdx].body.find(o => o.vaccines < 2 && !bot.body.some(my => my.color === o.color));
-                        if (stealable) {
-                            executeMove(turnIndex, i, pIdx, stealable.color, null);
-                            return;
-                        }
+                        if (stealable) { executeMove(turnIndex, i, pIdx, stealable.color, null); return; }
                     }
                 }
             }
@@ -911,17 +896,14 @@ function aiPlay() {
                     if (pIdx !== turnIndex) {
                         let wanted = players[pIdx].body.find(o => o.vaccines < 2 && !bot.body.some(my => my.color === o.color));
                         let unwanted = bot.body.find(o => o.infected || o.vaccines === 0);
-                        if (wanted && unwanted) {
-                            executeMove(turnIndex, i, pIdx, wanted.color, unwanted.color); 
-                            return;
-                        }
+                        if (wanted && unwanted) { executeMove(turnIndex, i, pIdx, wanted.color, unwanted.color); return; }
                     }
                 }
             }
         }
     }
 
-    // 5. PRIORIDAD: CRECER
+    // 5. CRECER
     if (!played) {
         for (let i = 0; i < hand.length; i++) {
             if (hand[i].type === 'organ' && !bot.body.find(o => o.color === hand[i].color)) {
@@ -931,14 +913,29 @@ function aiPlay() {
         }
     }
 
-    // 6. PRIORIDAD: DESCARTAR
+    // 6. DESCARTE TACTICO MASIVO (NUEVO)
     if (!played) {
-        for (let i = 0; i < hand.length; i++) {
-            if (hand[i].type === 'organ' && bot.body.find(o => o.color === hand[i].color)) {
-                executeDiscard(turnIndex, i); 
-                return;
+        let discardIndices = [];
+        // Buscar cartas inútiles (órganos repetidos)
+        for(let i=0; i<hand.length; i++) {
+            if(hand[i].type === 'organ' && bot.body.find(o => o.color === hand[i].color)) {
+                discardIndices.push(i);
             }
         }
+
+        // Si hay cartas basura, tirarlas todas
+        if (discardIndices.length > 0) {
+            discardIndices.sort((a,b) => b-a);
+            discardIndices.forEach(idx => {
+                discardPile.push(hand[idx]);
+                hand.splice(idx, 1);
+            });
+            refillHand(bot);
+            nextTurn(`${bot.name} descartó ${discardIndices.length} cartas`);
+            return;
+        }
+
+        // Si no hay basura obvia, tirar la primera
         executeDiscard(turnIndex, 0);
     }
 }
@@ -1113,4 +1110,3 @@ function confirmExit() {
         }, 100);
     }
 }
-
