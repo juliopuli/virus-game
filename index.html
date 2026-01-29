@@ -29,6 +29,61 @@
     
     <div id="trial-counter" class="trial-info" style="display:none;"></div>
 
+    <div id="rules-modal">
+        <div class="rules-content">
+            <div class="rules-header">
+                <h2>📘 CÓMO JUGAR</h2>
+                <button class="rules-close-btn" onclick="toggleRules()">×</button>
+            </div>
+            <div class="rules-body">
+                <div class="rules-section">
+                    <h3>🏆 Objetivo</h3>
+                    <div class="rule-item">
+                        <div class="rule-icon">❤️</div>
+                        <div>Completa tu cuerpo con <b>4 órganos sanos</b> de diferente color (Rojo, Azul, Verde, Amarillo) para ganar.</div>
+                    </div>
+                </div>
+
+                <div class="rules-section">
+                    <h3>🕹️ Turno</h3>
+                    <p>En tu turno, solo puedes hacer <b>UNA</b> de estas dos cosas:</p>
+                    <ol>
+                        <li><b>Jugar 1 carta:</b> Ponla en tu cuerpo o en el de un rival.</li>
+                        <li><b>Descartar:</b> Tira 1, 2 o 3 cartas si no te sirven.</li>
+                    </ol>
+                    <p><i>*Al final de tu turno, robarás automáticamente hasta tener 3 cartas.</i></p>
+                </div>
+
+                <div class="rules-section">
+                    <h3>🦠 Cartas Básicas</h3>
+                    <div class="rule-item">
+                        <div class="rule-icon">🫀</div>
+                        <div><b>Órgano:</b> Ponlo en tu zona. Solo 1 de cada color.</div>
+                    </div>
+                    <div class="rule-item">
+                        <div class="rule-icon">💊</div>
+                        <div><b>Medicina:</b> Cura un virus o protege un órgano (vacuna). <br>2 Medicinas = <b>Inmunizado</b> (Intocable).</div>
+                    </div>
+                    <div class="rule-item">
+                        <div class="rule-icon">🦠</div>
+                        <div><b>Virus:</b> Infecta un órgano sano o destruye una vacuna. <br>2 Virus = <b>Extirpado</b> (Órgano destruido).</div>
+                    </div>
+                </div>
+
+                <div class="rules-section">
+                    <h3>⚡ Cartas Especiales</h3>
+                    <div class="special-cards-grid">
+                        <div class="special-card-box"><b>🏥 Trasplante</b>Intercambia un órgano tuyo por uno de un rival.</div>
+                        <div class="special-card-box"><b>🧤 Ladrón</b>Roba un órgano de un rival para tu cuerpo.</div>
+                        <div class="special-card-box"><b>🤧 Contagio</b>Pasa tus virus a los órganos sanos de los demás.</div>
+                        <div class="special-card-box"><b>🧤 Guante Látex</b>Todos descartan su mano menos tú.</div>
+                        <div class="special-card-box"><b>🔁 Error Médico</b>Intercambia TODO tu cuerpo con el de otro jugador.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div id="main-menu">
         <h1 class="game-title">JUEGO<span class="title-virus">VIRUS</span></h1>
 
@@ -41,6 +96,10 @@
             
             <button onclick="showMultiplayerOptions()" class="modern-btn">
                 👥 Multiplayer (Online)
+            </button>
+
+            <button onclick="toggleRules()" class="modern-btn" style="background: #3498db; border-color: #2980b9;">
+                📘 Cómo Jugar
             </button>
 
             <div class="meta-container">
@@ -110,12 +169,15 @@
     <div id="game-container" class="blurred">
         <div id="scoreboard-area"></div>
         <div id="notification-bar">...</div>
+        
         <div id="rivals-container"></div>
+
         <div id="deck-area">
             <div id="dynamic-controls"></div>
             <div class="deck-info"><div class="card deck-visual"><span id="deck-count">0</span></div></div>
             <button onclick="confirmExit()" id="restart-btn" style="display:none">Salir</button>
         </div>
+
         <div class="board-section" id="my-board-section">
             <div id="player-body" class="body-slots"></div>
             <h3>👤 TU SALUD</h3>
@@ -123,13 +185,7 @@
         </div>
     </div>
     
-    <div class="version-display">V.4.8.0</div>
+    <div class="version-display">V.4.9.0</div>
     <script src="script.js"></script>
 </body>
 </html>
-
-
-
-
-
-
