@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.7.0 ---
+// --- CONFIGURACIÓN V4.8.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -13,7 +13,7 @@ let gameStarted = false;
 let mqttClient = null;
 let roomCode = null;
 let turnIndex = 0; 
-let roundStarter = 0; // NUEVO: Índice del jugador que empieza la ronda
+let roundStarter = 0; 
 let lastActionLog = "Esperando inicio...";
 let chatMessages = [];
 let isChatOpen = false;
@@ -33,7 +33,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_7_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_8_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -43,7 +43,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS ---
-const _graphic_assets = ["ASEDR-EDW34F"]; 
+const _graphic_assets = []; 
 const _max_particle_count = 10; 
 // --------------------
 
@@ -128,7 +128,7 @@ function startLocalGame() {
         { name: "JULIO", hand: [], body: [], wins: 0, isBot: true }
     ];
     myPlayerIndex = 0;
-    roundStarter = 0; // Reiniciar rotación al empezar partida nueva
+    roundStarter = 0; 
     startGameUI(); 
     initGame();
 }
@@ -188,7 +188,7 @@ function createRoom() {
     players = [{ name: name, hand: [], body: [], wins: 0, isBot: false }];
     playerLastSeen[name] = Date.now(); 
     myPlayerIndex = 0;
-    roundStarter = 0; // Reiniciar rotación al crear sala
+    roundStarter = 0; 
     updateLobbyUI();
     connectMqtt();
 }
@@ -203,7 +203,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v470_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v480_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -283,7 +283,6 @@ function handlePlayerDisconnect(pIdx) {
     delete playerLastSeen[pName];
     if (turnIndex >= players.length) turnIndex = 0;
 
-    // Ajustar roundStarter si es necesario para que no apunte a un índice inválido
     if (roundStarter >= players.length) roundStarter = 0;
 
     if (players.length < 2) {
@@ -398,16 +397,28 @@ function hostStartGame() {
     startGameUI(); 
 }
 
+// --- GENERACIÓN DE MAZO OFICIAL V4.8.0 ---
 function initGame() {
     if(deck.length === 0) {
         deck = []; discardPile = [];
         colors.forEach(c => {
-            for(let i=0; i<4; i++) deck.push({color: c, type: 'organ'});
+            for(let i=0; i<5; i++) deck.push({color: c, type: 'organ'}); // 5 organos por color
             for(let i=0; i<4; i++) deck.push({color: c, type: 'virus'});
             for(let i=0; i<4; i++) deck.push({color: c, type: 'medicine'});
         });
-        ['organ', 'virus', 'medicine'].forEach(t => deck.push({color: 'multicolor', type: t}));
-        ['Ladrón', 'Trasplante', 'Contagio', 'Guante de Látex', 'Error Médico'].forEach(t => deck.push({type: 'treatment', name: t}));
+        
+        // MULTICOLOR
+        deck.push({color: 'multicolor', type: 'organ'});
+        deck.push({color: 'multicolor', type: 'virus'});
+        for(let i=0; i<4; i++) deck.push({color: 'multicolor', type: 'medicine'});
+
+        // TRATAMIENTOS (Cantidades Oficiales)
+        for(let i=0; i<3; i++) deck.push({type: 'treatment', name: 'Trasplante'});
+        for(let i=0; i<3; i++) deck.push({type: 'treatment', name: 'Ladrón'});
+        for(let i=0; i<2; i++) deck.push({type: 'treatment', name: 'Contagio'});
+        deck.push({type: 'treatment', name: 'Guante de Látex'});
+        deck.push({type: 'treatment', name: 'Error Médico'});
+
         deck = deck.sort(() => Math.random() - 0.5);
 
         players.forEach(p => {
@@ -415,8 +426,7 @@ function initGame() {
             for(let i=0; i<3; i++) p.hand.push(deck.pop());
         });
 
-        // ROTACIÓN DE JUGADOR INICIAL
-        turnIndex = roundStarter; // Empieza quien toca
+        turnIndex = roundStarter; 
         lastActionLog = `¡Ronda para ${players[turnIndex].name}!`;
         visualDeckCount = deck.length; 
         
@@ -809,7 +819,6 @@ function showRoundModal(winner) {
         } else {
             btn.innerText = "SIGUIENTE RONDA";
             btn.onclick = () => {
-                // ACTUALIZAR ROTACIÓN
                 roundStarter = (roundStarter + 1) % players.length;
                 continueGame();
             };
@@ -836,7 +845,6 @@ function checkAiTurn() {
     }
 }
 
-// --- IA INTELIGENTE ---
 function aiPlay() {
     const bot = players[turnIndex];
     const hand = bot.hand;
