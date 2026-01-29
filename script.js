@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.9.0 ---
+// --- CONFIGURACIÓN V4.9.1 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -33,7 +33,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_9_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_9_1/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -140,7 +140,7 @@ function showMultiplayerOptions() {
     document.getElementById('mp-options').style.display = 'block';
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
-    document.querySelector('button[onclick="toggleRules()"]').style.display = 'none'; // Ocultar instrucciones
+    document.querySelector('button[onclick="toggleRules()"]').style.display = 'none'; 
     document.querySelector('.meta-container').style.display = 'none';
     const btn = document.getElementById('btn-activate-premium');
     if(btn) btn.style.display = 'none';
@@ -204,7 +204,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v490_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v491_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -801,17 +801,38 @@ function showRoundModal(winner) {
     let scores = players.map(p => `${p.name}: ${p.wins}`).join(' | ');
     document.getElementById('round-scores').innerText = scores;
     
-    if (winner.wins >= targetWins) {
+    // --- LÓGICA DIFERENCIA DE 2 PUNTOS ---
+    // 1. Ordenamos por victorias para ver el segundo mejor
+    let sorted = [...players].sort((a,b) => b.wins - a.wins);
+    let first = sorted[0];
+    let second = sorted[1]; // Puede ser undefined si solo hay 1 jugador, pero en ese caso gana directo
+
+    // Condición de victoria definitiva:
+    // 1. Llegar a la meta
+    // 2. Sacar 2 puntos al segundo
+    let isTournamentOver = false;
+    if (first.wins >= targetWins) {
+        if (players.length === 1 || (first.wins - second.wins >= 2)) {
+            isTournamentOver = true;
+        }
+    }
+
+    // ESTILO GANADOR
+    if (isTournamentOver) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
     } else {
         title.innerText = `¡${winner.name} GANA LA RONDA!`;
         title.className = "";
+        // Aviso visual si hay "Deuce" (Empate técnico)
+        if (first.wins >= targetWins) {
+             document.getElementById('round-message').innerText += `\n(Se necesita diferencia de 2 para ganar)`;
+        }
     }
     
     if (isHost) {
         btn.style.display = 'block';
-        if (winner.wins >= targetWins) {
+        if (isTournamentOver) {
             btn.innerText = "NUEVO TORNEO";
             btn.onclick = () => { deck=[]; discardPile=[]; players.forEach(p=>p.wins=0); roundStarter=0; continueGame(); };
         } else {
