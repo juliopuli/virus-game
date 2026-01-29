@@ -88,6 +88,50 @@ body {
 #room-code-display h2 { font-family: monospace; font-size: 2.5rem; margin: 10px 0; color: var(--neon-orange); text-shadow: 0 0 10px var(--neon-orange); }
 #lobby-list { color: var(--neon-blue); }
 
+/* --- INSTRUCCIONES MODAL (V4.9.0) --- */
+#rules-modal {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.95); z-index: 5000;
+    display: none; justify-content: center; align-items: center;
+    backdrop-filter: blur(5px);
+}
+.rules-content {
+    background: #2c3e50;
+    width: 95%; max-width: 600px; height: 85vh;
+    border-radius: 15px; border: 2px solid #3498db;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(52, 152, 219, 0.4);
+}
+.rules-header {
+    background: #1a2530; padding: 15px;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 2px solid #3498db;
+}
+.rules-header h2 { margin: 0; color: #3498db; font-size: 1.5rem; }
+.rules-close-btn {
+    background: none; border: none; color: #fff; font-size: 2rem;
+    cursor: pointer; line-height: 1;
+}
+.rules-body {
+    padding: 20px; overflow-y: auto; color: #ecf0f1;
+    font-size: 0.95rem; line-height: 1.5;
+}
+.rules-section { margin-bottom: 25px; }
+.rules-section h3 { color: #e67e22; border-bottom: 1px solid #e67e22; padding-bottom: 5px; margin-bottom: 10px; }
+.rule-item { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.rule-icon { font-size: 1.5rem; width: 30px; text-align: center; }
+.special-cards-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 10px; margin-top: 10px;
+}
+.special-card-box {
+    background: rgba(0,0,0,0.3); padding: 10px;
+    border-radius: 8px; border: 1px solid #555;
+    font-size: 0.85rem;
+}
+.special-card-box b { color: #f1c40f; display: block; margin-bottom: 4px; }
+
 .blurred { filter: blur(8px); pointer-events: none; transition: filter 0.5s; }
 
 /* JUEGO */
