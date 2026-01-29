@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.8.0 ---
+// --- CONFIGURACIÓN V4.9.0 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -33,7 +33,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_8_0/'; 
+const TOPIC_PREFIX = 'virusgame/v4_9_0/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -140,6 +140,7 @@ function showMultiplayerOptions() {
     document.getElementById('mp-options').style.display = 'block';
     document.querySelector('.btn-orange-glow').style.display = 'none';
     document.querySelector('button[onclick="showMultiplayerOptions()"]').style.display = 'none';
+    document.querySelector('button[onclick="toggleRules()"]').style.display = 'none'; // Ocultar instrucciones
     document.querySelector('.meta-container').style.display = 'none';
     const btn = document.getElementById('btn-activate-premium');
     if(btn) btn.style.display = 'none';
@@ -203,7 +204,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v480_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v490_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -397,22 +398,19 @@ function hostStartGame() {
     startGameUI(); 
 }
 
-// --- GENERACIÓN DE MAZO OFICIAL V4.8.0 ---
 function initGame() {
     if(deck.length === 0) {
         deck = []; discardPile = [];
         colors.forEach(c => {
-            for(let i=0; i<5; i++) deck.push({color: c, type: 'organ'}); // 5 organos por color
+            for(let i=0; i<5; i++) deck.push({color: c, type: 'organ'}); 
             for(let i=0; i<4; i++) deck.push({color: c, type: 'virus'});
             for(let i=0; i<4; i++) deck.push({color: c, type: 'medicine'});
         });
         
-        // MULTICOLOR
         deck.push({color: 'multicolor', type: 'organ'});
         deck.push({color: 'multicolor', type: 'virus'});
         for(let i=0; i<4; i++) deck.push({color: 'multicolor', type: 'medicine'});
 
-        // TRATAMIENTOS (Cantidades Oficiales)
         for(let i=0; i<3; i++) deck.push({type: 'treatment', name: 'Trasplante'});
         for(let i=0; i<3; i++) deck.push({type: 'treatment', name: 'Ladrón'});
         for(let i=0; i<2; i++) deck.push({type: 'treatment', name: 'Contagio'});
@@ -1122,4 +1120,8 @@ function confirmExit() {
             window.location.href = window.location.href; 
         }, 100);
     }
+}
+function toggleRules() {
+    const modal = document.getElementById('rules-modal');
+    modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
