@@ -1,4 +1,4 @@
-// --- CONFIGURACIÓN V4.9.1 ---
+// --- CONFIGURACIÓN V4.9.2 ---
 const colors = ['red', 'blue', 'green', 'yellow'];
 let deck = [], discardPile = [];
 let players = []; 
@@ -33,7 +33,7 @@ let playerLastSeen = {};
 let lastHostTime = 0;           
 
 const BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
-const TOPIC_PREFIX = 'virusgame/v4_9_1/'; 
+const TOPIC_PREFIX = 'virusgame/v4_9_2/'; 
 
 const icons = {
     organ: `<svg viewBox="0 0 512 512"><path fill="currentColor" d="M462.3 62.6C407.5 15.9 326 24.3 275.7 76.2L256 96.5l-19.7-20.3C186.1 24.3 104.5 15.9 49.7 62.6c-62.8 53.6-66.1 149.8-9.9 207.9l193.5 199.8c12.5 12.9 32.8 12.9 45.3 0l193.5-199.8c56.3-58.1 53-154.3-9.8-207.9z"/></svg>`,
@@ -204,7 +204,7 @@ function connectToPeer() {
 
 function connectMqtt() {
     stopNetwork();
-    const clientId = 'v491_' + Math.random().toString(16).substr(2, 8);
+    const clientId = 'v492_' + Math.random().toString(16).substr(2, 8);
     mqttClient = mqtt.connect(BROKER_URL, { clean: true, clientId: clientId });
 
     mqttClient.on('connect', () => {
@@ -704,15 +704,30 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
             }
         }
         
+        // --- CONTAGIO V4.9.2 ---
         if (card.name === 'Contagio') {
             let dest = target.body.find(x => x.color === tColor);
+            // Buscar un órgano infectado en mi cuerpo que sea COMPATIBLE con el destino.
             let source = actor.body.find(x => x.infected && (x.color === tColor || x.color === 'multicolor' || dest.color === 'multicolor'));
-            if (dest && source && !dest.infected && dest.vaccines === 0) {
-                source.infected = false;
-                dest.infected = true;
-                success = true; log = `${actor.name} contagió a ${target.name}`;
+            
+            // Corrección: Permitir si destino tiene 0 vacunas (aunque tenga virus)
+            if (dest && source && dest.vaccines === 0) {
+                source.infected = false; // Yo me curo
+                if (dest.infected) {
+                    // Si el rival ya tenía virus -> DESTRUCCIÓN
+                    target.body = target.body.filter(x => x !== dest);
+                    discardPile.push({color: dest.color, type: 'organ'});
+                    // No recuperamos los virus a la pila para no complicar el mazo visual, se asume descarte
+                    log = `${actor.name} eliminó órgano de ${target.name} por Contagio`;
+                } else {
+                    // Si estaba sano -> INFECCIÓN
+                    dest.infected = true;
+                    log = `${actor.name} contagió a ${target.name}`;
+                }
+                success = true;
             }
         }
+        // --------------------------------
 
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
@@ -802,14 +817,10 @@ function showRoundModal(winner) {
     document.getElementById('round-scores').innerText = scores;
     
     // --- LÓGICA DIFERENCIA DE 2 PUNTOS ---
-    // 1. Ordenamos por victorias para ver el segundo mejor
     let sorted = [...players].sort((a,b) => b.wins - a.wins);
     let first = sorted[0];
-    let second = sorted[1]; // Puede ser undefined si solo hay 1 jugador, pero en ese caso gana directo
+    let second = sorted[1]; 
 
-    // Condición de victoria definitiva:
-    // 1. Llegar a la meta
-    // 2. Sacar 2 puntos al segundo
     let isTournamentOver = false;
     if (first.wins >= targetWins) {
         if (players.length === 1 || (first.wins - second.wins >= 2)) {
@@ -817,14 +828,12 @@ function showRoundModal(winner) {
         }
     }
 
-    // ESTILO GANADOR
     if (isTournamentOver) {
         title.innerHTML = `¡GRAN CAMPEÓN DEL TORNEO!`;
         title.className = "winner-tournament-title";
     } else {
         title.innerText = `¡${winner.name} GANA LA RONDA!`;
         title.className = "";
-        // Aviso visual si hay "Deuce" (Empate técnico)
         if (first.wins >= targetWins) {
              document.getElementById('round-message').innerText += `\n(Se necesita diferencia de 2 para ganar)`;
         }
