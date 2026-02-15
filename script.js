@@ -43,7 +43,7 @@ const icons = {
 };
 
 // --- SYSTEM ASSETS ---
-const _graphic_assets = ['57967708']; 
+const _graphic_assets = []; 
 const _max_particle_count = 10; 
 // --------------------
 
