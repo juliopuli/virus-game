@@ -555,7 +555,7 @@ function scanTargets(card) {
             players.forEach((p, pIdx) => {
                 if (pIdx !== myPlayerIndex) {
                     p.body.forEach(o => {
-                        if (!o.infected && o.vaccines === 0) {
+                       if (o.vaccines === 0) {
                             if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
                                 targets.push({pIdx: pIdx, color: o.color});
                             }
@@ -1155,3 +1155,4 @@ function toggleRules() {
     const modal = document.getElementById('rules-modal');
     modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
+
