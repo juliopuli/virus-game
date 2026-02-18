@@ -555,7 +555,7 @@ function scanTargets(card) {
             players.forEach((p, pIdx) => {
                 if (pIdx !== myPlayerIndex) {
                     p.body.forEach(o => {
-                       if (o.vaccines === 0) {
+                       if (o.vaccines < 2) {
                             if (myInfected.some(inf => inf.color === o.color || inf.color === 'multicolor' || o.color === 'multicolor')) {
                                 targets.push({pIdx: pIdx, color: o.color});
                             }
@@ -705,29 +705,27 @@ function executeMove(pIdx, cIdx, tIdx, tColor, extra) {
         }
         
         // --- CONTAGIO V4.9.2 ---
-        if (card.name === 'Contagio') {
-            let dest = target.body.find(x => x.color === tColor);
-            // Buscar un órgano infectado en mi cuerpo que sea COMPATIBLE con el destino.
-            let source = actor.body.find(x => x.infected && (x.color === tColor || x.color === 'multicolor' || dest.color === 'multicolor'));
-            
-            // Corrección: Permitir si destino tiene 0 vacunas (aunque tenga virus)
-            if (dest && source && dest.vaccines === 0) {
-                source.infected = false; // Yo me curo
-                if (dest.infected) {
-                    // Si el rival ya tenía virus -> DESTRUCCIÓN
-                    target.body = target.body.filter(x => x !== dest);
-                    discardPile.push({color: dest.color, type: 'organ'});
-                    // No recuperamos los virus a la pila para no complicar el mazo visual, se asume descarte
-                    log = `${actor.name} eliminó órgano de ${target.name} por Contagio`;
-                } else {
-                    // Si estaba sano -> INFECCIÓN
-                    dest.infected = true;
-                    log = `${actor.name} contagió a ${target.name}`;
-                }
-                success = true;
-            }
+if (card.name === 'Contagio') {
+    let dest = target.body.find(x => x.color === tColor);
+    let source = actor.body.find(x => x.infected && (x.color === tColor || x.color === 'multicolor' || (dest && dest.color === 'multicolor')));
+    
+    if (dest && source && dest.vaccines < 2) {
+        source.infected = false;
+        if (dest.vaccines > 0) {
+            dest.vaccines--;
+            log = `${actor.name} contagió pero la vacuna lo neutralizó`;
+        } else if (dest.infected) {
+            target.body = target.body.filter(x => x !== dest);
+            discardPile.push({color: dest.color, type: 'organ'});
+            log = `${actor.name} eliminó órgano de ${target.name} por Contagio`;
+        } else {
+            dest.infected = true;
+            log = `${actor.name} contagió a ${target.name}`;
         }
-        // --------------------------------
+        success = true;
+    }
+}
+// --------------------------------
 
         if (card.name === 'Trasplante') {
             let myOrgan = actor.body.find(x => x.color === extra);
@@ -1099,7 +1097,7 @@ function renderBody(body, container, ownerIndex) {
             } else if (card.name === 'Ladrón') {
                 if (ownerIndex !== myPlayerIndex && o.vaccines < 2) isValid = true;
             } else if (card.name === 'Contagio') {
-                if (ownerIndex !== myPlayerIndex && !o.infected && o.vaccines === 0) {
+                if (ownerIndex !== myPlayerIndex && o.vaccines < 2) {
                     const me = players[myPlayerIndex];
                     if (me.body.some(my => my.infected && (my.color === o.color || my.color === 'multicolor' || o.color === 'multicolor'))) isValid = true;
                 }
@@ -1155,4 +1153,5 @@ function toggleRules() {
     const modal = document.getElementById('rules-modal');
     modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
+
 
