@@ -188,8 +188,18 @@
     
     <div class="version-display">V.4.9.5</div>
     <script src="script.js"></script>
+    <script>
+window.addEventListener('DOMContentLoaded', function () {
+  var nombre = document.getElementById('username');
+  if (nombre) {
+    // Si por algún motivo tiene el foco, quítaselo.
+    nombre.blur();
+  }
+});
+</script>
 </body>
 </html>
+
 
 
 
