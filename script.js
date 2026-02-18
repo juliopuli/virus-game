@@ -50,7 +50,9 @@ const _max_particle_count = 10;
 window.onload = function() { 
     checkLicenseStatus();
     const savedName = localStorage.getItem('virus_username');
-    if (savedName) document.getElementById('username').value = savedName;
+    const usernameInput = document.getElementById('username');
+    if (savedName) usernameInput.value = savedName;
+    usernameInput.blur();
 };
 
 function checkLicenseStatus() {
@@ -1153,5 +1155,6 @@ function toggleRules() {
     const modal = document.getElementById('rules-modal');
     modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
 }
+
 
 
